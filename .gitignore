@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Model artifacts / training outputs
+*.pt
+*.pth
+*.ckpt
+checkpoints/
+runs/
+wandb/
+
+# Data (downloaded/generated corpora, kept out of git)
+data/raw/
+data/processed/
+*.jsonl.gz
+
+# OS
+.DS_Store
+Thumbs.db
