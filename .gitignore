@@ -21,6 +21,13 @@ wandb/
 data/raw/
 data/processed/
 *.jsonl.gz
+*.bin
+mini_llm/data/artifacts/
+depth_lab/data/artifacts/
+
+# HuggingFace datasets/tokenizers cache
+.cache/
+.hf_cache/
 
 # OS
 .DS_Store
