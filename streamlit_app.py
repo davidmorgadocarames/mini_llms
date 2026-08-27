@@ -3,11 +3,11 @@ Fase A checkpoint (downloaded from the HuggingFace Hub model repo
 davidmorgado/coconut-mini-llm at startup, then cached).
 
 This is the "real inference in the browser" counterpart to the static replay
-demo at docs/index.html -- here the model actually runs, on Streamlit's
-server, not a pre-recorded transcript. Styled like a terminal (same visual
-language as coconut_tui and docs/index.html) instead of a plain web form,
-with a live token counter -- both requested explicitly after the first
-version looked too much like a generic Streamlit form.
+demo at docs/index.html -- same visual language and layout (fixed-height
+scrolling output panel, token counter + prompt always visible below it,
+never needing to scroll past generated text to reach the input -- mirrors
+Claude Code's input bar), but the model actually runs here instead of
+replaying a pre-recorded transcript.
 """
 
 import base64
@@ -37,18 +37,15 @@ TERMINAL_CSS = """
 <style>
 .stApp { background-color: #0b0e0f; }
 html, body, [class*="css"], .stApp, .stMarkdown, .stButton button,
-.stTextArea textarea, .stSlider label, .stSlider [data-testid="stTickBar"] {
+.stTextInput input, .stSlider label, .stSlider [data-testid="stTickBar"] {
     font-family: ui-monospace, SFMono-Regular, "Cascadia Code", "Fira Code",
                  Consolas, "Courier New", monospace !important;
 }
 .stApp, .stApp p, .stApp label, .stApp span { color: #d8dee2; }
 [data-testid="stSidebar"] { background-color: #12171a; border-right: 1px solid #23292c; }
 
-/* Pre-rendered PNG instead of live block-character text: mobile browsers
-   substitute generic "tofu" glyphs for Unicode block-drawing characters
-   (confirmed on a real device), so this renders identically everywhere. */
 .coconut-banner-img {
-    max-width: 420px;
+    max-width: 320px;
     width: 100%;
     height: auto;
     display: block;
@@ -61,6 +58,28 @@ html, body, [class*="css"], .stApp, .stMarkdown, .stButton button,
 }
 .coconut-info strong { color: #c98a4b; }
 
+/* Window-title-style bar sitting flush above the bordered container below,
+   the same visual pattern as the terminal-head in docs/index.html. */
+.terminal-head-bar {
+    display: flex; align-items: center; gap: .35rem;
+    background: #12171a; border: 1px solid #23292c; border-bottom: none;
+    border-radius: 10px 10px 0 0; padding: .5rem .8rem;
+    color: #7b8790; font-size: .78rem; margin-top: .5rem;
+}
+.terminal-head-bar .dot {
+    width: .55rem; height: .55rem; border-radius: 50%; background: #3a4145;
+}
+
+/* The fixed-height scrolling panel is st.container(height=..., border=True);
+   this restyles Streamlit's own border wrapper to match our dark theme and
+   sit flush under the title bar above. */
+div[data-testid="stVerticalBlockBorderWrapper"] {
+    background: #12171a !important;
+    border: 1px solid #23292c !important;
+    border-top: none !important;
+    border-radius: 0 0 10px 10px !important;
+}
+
 div.stButton > button {
     background: #1a2124; color: #d8dee2; border: 1px solid #23292c;
     border-radius: 6px; font-family: inherit;
@@ -68,18 +87,18 @@ div.stButton > button {
 div.stButton > button:hover { border-color: #8a6238; color: #c98a4b; }
 div.stButton > button[kind="primary"] { background: #1f3d2b; border-color: #6fcf97; color: #6fcf97; }
 
-.stTextArea textarea {
+.stTextInput input {
     background: #12171a !important; color: #d8dee2 !important;
     border: 1px solid #23292c !important; font-family: inherit !important;
 }
 
 .token-counter {
-    color: #6fcf97; font-size: 0.82rem; margin: 0.4rem 0 0.75rem 0;
+    color: #6fcf97; font-size: 0.82rem; margin: 0.75rem 0 0.4rem 0;
 }
 pre.coconut-output {
-    background: #12171a; border: 1px solid #23292c; border-radius: 8px;
-    padding: 0.9rem; white-space: pre-wrap; word-break: break-word;
+    white-space: pre-wrap; word-break: break-word;
     line-height: 1.55; font-size: 0.92rem; color: #d8dee2;
+    margin: 0; font-family: inherit;
 }
 </style>
 """
@@ -120,9 +139,40 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+with st.sidebar:
+    st.header("Parametros")
+    temperature = st.slider("Temperature", 0.1, 1.5, 0.8, 0.05)
+    top_k = st.slider("Top-k", 1, 200, 50, 1)
+    max_new_tokens = st.slider("Tokens a generar", 20, 400, 150, 10)
+    st.markdown("---")
+    st.markdown("[Codigo en GitHub](https://github.com/davidmorgadocarames/mini_llms)")
+
 if "total_tokens" not in st.session_state:
     st.session_state.total_tokens = 0
+if "last_output" not in st.session_state:
+    st.session_state.last_output = ""
+if "prompt" not in st.session_state:
+    st.session_state.prompt = ""
 
+# --- fixed-height scrolling panel: example chips + generated output ---
+st.markdown(
+    '<div class="terminal-head-bar"><span class="dot"></span><span class="dot"></span>'
+    '<span class="dot"></span>&nbsp;coconut &mdash; streamlit</div>',
+    unsafe_allow_html=True,
+)
+with st.container(height=380, border=True):
+    cols = st.columns(len(EXAMPLE_PROMPTS))
+    for col, example in zip(cols, EXAMPLE_PROMPTS):
+        if col.button(example, use_container_width=True):
+            st.session_state.prompt = example
+    output_box = st.empty()
+    output_box.markdown(
+        f'<pre class="coconut-output">{html.escape(st.session_state.last_output)}</pre>',
+        unsafe_allow_html=True,
+    )
+
+# --- always-visible footer: token counter + prompt input, never needs
+#     scrolling past the generated text to reach it (mirrors Claude Code) ---
 token_counter = st.empty()
 
 
@@ -137,28 +187,9 @@ def render_token_counter(current: int = 0) -> None:
 
 render_token_counter()
 
-with st.sidebar:
-    st.header("Parametros")
-    temperature = st.slider("Temperature", 0.1, 1.5, 0.8, 0.05)
-    top_k = st.slider("Top-k", 1, 200, 50, 1)
-    max_new_tokens = st.slider("Tokens a generar", 20, 400, 150, 10)
-    st.markdown("---")
-    st.markdown("[Codigo en GitHub](https://github.com/davidmorgadocarames/mini_llms)")
-
-st.markdown("**Prueba, por ejemplo:**")
-if "prompt" not in st.session_state:
-    st.session_state.prompt = ""
-
-cols = st.columns(len(EXAMPLE_PROMPTS))
-for col, example in zip(cols, EXAMPLE_PROMPTS):
-    if col.button(example, use_container_width=True):
-        st.session_state.prompt = example
-
-prompt = st.text_area(
-    "Prompt", key="prompt", height=80, placeholder="Escribe el principio de una frase..."
+prompt = st.text_input(
+    "Prompt", key="prompt", placeholder="elige un prompt de arriba, o escribelo tal cual", label_visibility="collapsed"
 )
-
-output_box = st.empty()
 
 if st.button("Generar", type="primary") and prompt.strip():
     ids = tokenizer.encode(prompt)
@@ -183,5 +214,6 @@ if st.button("Generar", type="primary") and prompt.strip():
         render_token_counter(n_tokens)
 
     output_box.markdown(f'<pre class="coconut-output">{html.escape(text_so_far)}</pre>', unsafe_allow_html=True)
+    st.session_state.last_output = text_so_far
     st.session_state.total_tokens += n_tokens
     render_token_counter()
