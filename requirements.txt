@@ -5,3 +5,7 @@ datasets
 tqdm
 matplotlib
 pytest
+pytest-asyncio
+textual
+rich
+pydantic

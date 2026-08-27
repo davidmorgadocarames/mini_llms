@@ -23,6 +23,13 @@ Proyecto de portfolio: construir un mini-LLM desde cero en dos fases, subido a G
   cómo cada arquitectura lo mitiga (o no). Reutiliza bloques de `mini_llm/model/`.
   Generador de datos ya implementado y probado (`depth_lab/data/generator.py`);
   pendiente: modelos, arnés de evaluación y demo interactiva.
+- **[HECHO] Coconut TUI**: interfaz de agente de terminal estilo Claude Code
+  (`coconut_tui/`) sobre el modelo de Fase A — panel de conversación con streaming,
+  panel de actividad plegable, diffs coloreados, arquitectura basada en eventos
+  Pydantic desacoplada de Textual y del proveedor del LLM. Ver README para el detalle
+  y `coconut_tui/agent.py` para las dos decisiones de diseño clave: los comandos `/`
+  disparan herramientas reales (el modelo no tiene function-calling), y la UI nunca
+  muestra razonamiento interno del modelo, solo acciones observables.
 
 ## Entorno
 
@@ -44,6 +51,10 @@ mini_llm/         Fase A: tokenizer/, data/, model/, train/, inference/
 depth_lab/        Fase B: data/ (generador sintético), models/ (decoder-only,
                   encoder-decoder, locator/replacer), eval/ (arnés de evaluación por
                   profundidad), demo/ (visualizador interactivo)
+coconut_tui/      TUI de agente (Textual) sobre el modelo de Fase A: events.py/bus.py
+                  (contrato Pydantic, sin Textual), providers/ (LLM desacoplado),
+                  tools/ (read/test/diff reales), agent.py (orquestador, sin Textual),
+                  widgets/ + app.py (la única capa que sí importa Textual)
 scripts/          Utilidades sueltas (p.ej. clean_vtt.py para los transcripts)
 tests/            pytest
 ```

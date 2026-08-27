@@ -33,27 +33,32 @@ generación (`--prompt "In 1943, the"`):
 El modelo aprendió gramática, puntuación, y hasta convenciones propias del formato
 WikiText (como `@-@` para guiones) sin que se le indicara explícitamente.
 
-### Coconut — UI de terminal
-
-Una pequeña interfaz de terminal para hablar con el modelo, al estilo Claude Code:
-
-```
- ▛███▜   Coconut v0.1.0
- █●●●█   26.4M params · step 20,000
- ▙███▟   ~\pc\proyectos ia\proyecto_llm_mini
-
-> Once upon a time
-Once upon a time of war due to the inability to attack the ships .
- <|endoftext|>  The German plan was to have a significant effect on naval
-forces, and the British, in the form of a major...
-```
+### Coconut — TUI de agente (estilo Claude Code)
 
 ```bash
 python coconut.py
 ```
 
-El texto se genera token a token en vivo. Comandos disponibles dentro de la sesión:
-`/temp <valor>`, `/tokens <n>`, `/help`, `/salir`.
+Interfaz de terminal construida con [Textual](https://textual.textualize.io/): panel
+de conversación (streaming token a token, Markdown vía Rich) + panel de actividad
+con eventos plegables (`⏺ Leyendo README.md` → `✓`), diffs coloreados, indicador de
+"trabajando" e input inferior — igual que Claude Code, pero para nuestro propio modelo.
+
+Como Coconut es un **base model sin fine-tuning de instrucciones**, la propia UI lo
+deja claro y sugiere prompts que sí funcionan (continuaciones de prosa, no preguntas).
+
+Comandos disponibles:
+- `/read <ruta>` — lee un fichero real del repo (con resaltado)
+- `/test [ruta]` — ejecuta pytest de verdad y muestra el resultado
+- `/diff <ruta>` — muestra el `git diff` real de un fichero, coloreado
+- `/temp <valor>`, `/tokens <n>` — ajustan la generación
+- `/help` — ayuda
+
+**Arquitectura**: basada en eventos (Pydantic) para desacoplar el `Agent` de Textual —
+`coconut_tui/agent.py`, `events.py`, `bus.py`, `providers/` y `tools/` no importan
+Textual y se testean con pytest normal, sin necesitar una terminal real. El proveedor
+del LLM (`coconut_tui/providers/`) es una interfaz intercambiable — cambiar de modelo
+es implementarla de nuevo, sin tocar el resto.
 
 🌐 **[Prueba la demo interactiva en el navegador](https://davidmorgadocarames.github.io/mini_llms/)** (sin instalar nada).
 
