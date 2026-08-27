@@ -10,7 +10,7 @@ from pathlib import Path
 import torch
 
 from mini_llm.model import GPT
-from mini_llm.tokenizer import BPETokenizer
+from mini_llm.tokenizer import BPETokenizer, clean_for_display
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "artifacts"
 CHECKPOINT_DIR = Path(__file__).resolve().parent.parent / "checkpoints"
@@ -46,7 +46,7 @@ def main() -> None:
 
     out = model.generate(idx, max_new_tokens=args.max_new_tokens,
                           temperature=args.temperature, top_k=args.top_k)
-    print(tokenizer.decode(out[0].tolist()))
+    print(clean_for_display(tokenizer.decode(out[0].tolist())))
 
 
 if __name__ == "__main__":

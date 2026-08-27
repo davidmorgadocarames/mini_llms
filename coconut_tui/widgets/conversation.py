@@ -8,6 +8,7 @@ from textual.containers import VerticalScroll
 from textual.widgets import Static
 
 from coconut_tui.logo import logo_for_width
+from mini_llm.tokenizer import clean_for_display
 
 
 class ConversationPanel(VerticalScroll):
@@ -63,12 +64,15 @@ class ConversationPanel(VerticalScroll):
         if self._current_assistant is None:
             self.begin_assistant_message()
         self._current_assistant_text += delta
-        self._current_assistant.update(self._current_assistant_text)
+        # Re-clean the whole accumulated text each time (not just the new
+        # delta) so a <|endoftext|> split across chunk boundaries still gets
+        # caught -- it's one BPE token so this is mostly precautionary.
+        self._current_assistant.update(clean_for_display(self._current_assistant_text))
         self.scroll_end(animate=False)
 
     def finish_assistant_message(self, full_text: str) -> None:
         if self._current_assistant is not None:
-            self._current_assistant.update(Markdown(full_text))
+            self._current_assistant.update(Markdown(clean_for_display(full_text)))
         self._current_assistant = None
         self.scroll_end(animate=False)
 

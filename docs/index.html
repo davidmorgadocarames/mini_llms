@@ -278,10 +278,17 @@ function typeText(promptText, bodyText, totalTokens) {
   }, 14);
 }
 
+// The model can emit the literal end-of-document separator token
+// mid-generation when it "jumps" to a new, unrelated article; show it as a
+// paragraph break instead of the raw <|endoftext|> string.
+function cleanForDisplay(text) {
+  return text.replace(/\s*<\|endoftext\|>\s*/g, "\n\n");
+}
+
 function runPrompt(promptText) {
   const example = findExample(promptText);
   if (example) {
-    typeText(example.prompt, example.text.slice(example.prompt.length), example.tokens);
+    typeText(example.prompt, cleanForDisplay(example.text.slice(example.prompt.length)), example.tokens);
   } else {
     typeText(
       promptText,

@@ -1,3 +1,3 @@
-from mini_llm.tokenizer.bpe import BPETokenizer
+from mini_llm.tokenizer.bpe import BPETokenizer, clean_for_display
 
-__all__ = ["BPETokenizer"]
+__all__ = ["BPETokenizer", "clean_for_display"]

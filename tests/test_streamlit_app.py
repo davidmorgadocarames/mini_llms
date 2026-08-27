@@ -8,6 +8,8 @@ from pathlib import Path
 import pytest
 from streamlit.testing.v1 import AppTest
 
+from mini_llm.tokenizer import clean_for_display
+
 APP_PATH = Path(__file__).resolve().parent.parent / "streamlit_app.py"
 
 
@@ -79,4 +81,6 @@ def test_generated_output_persists_in_the_scroll_panel_after_a_rerun():
     # unrelated rerun (clicking a different example chip)
     at.button[1].click().run()
     markdown_html_after = "\n".join(m.value for m in at.markdown)
-    assert html.escape(at.session_state["last_output_body"]) in markdown_html_after
+    # rendering applies clean_for_display() (see test_tokenizer_display.py),
+    # so compare against the same transformation, not the raw stored text
+    assert html.escape(clean_for_display(at.session_state["last_output_body"])) in markdown_html_after

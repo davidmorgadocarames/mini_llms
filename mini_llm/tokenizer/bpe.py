@@ -1,8 +1,20 @@
+import re
 from pathlib import Path
 
 from tokenizers import ByteLevelBPETokenizer
 
 EOT_TOKEN = "<|endoftext|>"
+
+# EOT_TOKEN was inserted between concatenated WikiText articles as a document
+# separator during data prep (see mini_llm/data/prepare_data.py). The model
+# can emit it mid-generation when it "jumps" to a new, unrelated article --
+# decode() faithfully returns the literal token text, which reads as noise,
+# so UIs should render it as a paragraph break instead of the raw string.
+_EOT_DISPLAY_PATTERN = re.compile(r"\s*" + re.escape(EOT_TOKEN) + r"\s*")
+
+
+def clean_for_display(text: str) -> str:
+    return _EOT_DISPLAY_PATTERN.sub("\n\n", text)
 
 
 class BPETokenizer:

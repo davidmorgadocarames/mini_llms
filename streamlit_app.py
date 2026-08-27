@@ -19,7 +19,7 @@ from huggingface_hub import hf_hub_download
 
 import streamlit as st
 from mini_llm.model import GPT
-from mini_llm.tokenizer import BPETokenizer
+from mini_llm.tokenizer import BPETokenizer, clean_for_display
 
 HF_REPO = "davidmorgado/coconut-mini-llm"
 LOGO_PATH = Path(__file__).resolve().parent / "coconut_tui" / "assets" / "logo.png"
@@ -196,9 +196,13 @@ def render_output(prompt_text: str, body_text: str, cursor: bool = False) -> str
     if not prompt_text and not body_text:
         return '<pre id="output-frame"></pre>'
     tail = "&#9608;" if cursor else ""
+    # The model can emit the literal EOT separator token mid-generation when
+    # it "jumps" to a new, unrelated article; show it as a paragraph break
+    # instead of the raw <|endoftext|> string.
+    body_display = clean_for_display(body_text)
     return (
         '<pre id="output-frame"><span class="prompt-echo">'
-        f"{html.escape(prompt_text)}</span> {html.escape(body_text)}{tail}</pre>"
+        f"{html.escape(prompt_text)}</span> {html.escape(body_display)}{tail}</pre>"
     )
 
 
