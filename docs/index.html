@@ -282,7 +282,13 @@ function typeText(promptText, bodyText, totalTokens) {
 // mid-generation when it "jumps" to a new, unrelated article; show it as a
 // paragraph break instead of the raw <|endoftext|> string.
 function cleanForDisplay(text) {
-  return text.replace(/\s*<\|endoftext\|>\s*/g, "\n\n");
+  text = text.replace(/\s*<\|endoftext\|>\s*/g, "\n\n");
+  // WikiText marks section headers as e.g. "= = = Siege of Cape Town = = =";
+  // render as an actual heading (own line, uppercase) instead of inline.
+  text = text.replace(/(?:=\s)*=\s+([^=\n]+?)\s+=(?:\s=)*/g,
+    (_, title) => `\n\n${title.trim().toUpperCase()}\n\n`);
+  text = text.replace(/[ \t]*\n\n[ \t]*/g, "\n\n");
+  return text.replace(/\n{3,}/g, "\n\n");
 }
 
 function runPrompt(promptText) {

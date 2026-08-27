@@ -12,9 +12,20 @@ EOT_TOKEN = "<|endoftext|>"
 # so UIs should render it as a paragraph break instead of the raw string.
 _EOT_DISPLAY_PATTERN = re.compile(r"\s*" + re.escape(EOT_TOKEN) + r"\s*")
 
+# WikiText marks section headers as e.g. "= = = Siege of Cape Town = = ="
+# (the tokenized source has "=" as its own space-separated symbol, repeated
+# once per heading level). Render it as an actual heading -- its own line,
+# uppercased -- instead of leaving it stuck mid-paragraph.
+_HEADER_PATTERN = re.compile(r"(?:=\s)*=\s+([^=\n]+?)\s+=(?:\s=)*")
+_EXTRA_BLANK_LINES = re.compile(r"\n{3,}")
+_SPACE_AROUND_BREAK = re.compile(r"[ \t]*\n\n[ \t]*")
+
 
 def clean_for_display(text: str) -> str:
-    return _EOT_DISPLAY_PATTERN.sub("\n\n", text)
+    text = _EOT_DISPLAY_PATTERN.sub("\n\n", text)
+    text = _HEADER_PATTERN.sub(lambda m: f"\n\n{m.group(1).strip().upper()}\n\n", text)
+    text = _SPACE_AROUND_BREAK.sub("\n\n", text)
+    return _EXTRA_BLANK_LINES.sub("\n\n", text)
 
 
 class BPETokenizer:
