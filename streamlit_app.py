@@ -24,6 +24,7 @@ from mini_llm.tokenizer import BPETokenizer, clean_for_display
 
 HF_REPO = "davidmorgado/coconut-mini-llm"
 LOGO_PATH = Path(__file__).resolve().parent / "coconut_tui" / "assets" / "logo.png"
+LOGO_FONT_PATH = Path(__file__).resolve().parent / "coconut_tui" / "assets" / "DejaVuSansMono.ttf"
 OUTPUT_BOX_HEIGHT = 520  # desktop size; shrunk back down for phones via a media query below
 
 EXAMPLE_PROMPTS = [
@@ -39,6 +40,25 @@ st.set_page_config(
     page_title="Coconut mini-LLM", page_icon="🥥", layout="wide", initial_sidebar_state="collapsed"
 )
 
+# Bundled instead of relying on the visitor's installed fonts: the ASCII-art
+# logo needs Unicode block-drawing glyphs (▓▒░█) with exact monospace cell
+# widths, and system font coverage/metrics for those vary enough across
+# OSes/browsers to visibly misalign the art (confirmed while testing this
+# very change). DejaVu Sans Mono is the same font scripts/render_logo.py
+# already uses to rasterize the PNG fallback, so this guarantees the live
+# text version looks identical everywhere, not just "probably fine".
+_logo_font_b64 = base64.b64encode(LOGO_FONT_PATH.read_bytes()).decode("ascii")
+
+FONT_FACE_CSS = f"""
+<style>
+@font-face {{
+    font-family: "CoconutLogoFont";
+    src: url(data:font/ttf;base64,{_logo_font_b64}) format("truetype");
+    font-display: block;
+}}
+</style>
+"""
+
 TERMINAL_CSS = """
 <style>
 .stApp { background-color: #0b0e0f; }
@@ -51,11 +71,18 @@ html, body, [class*="css"], .stApp, .stMarkdown, .stButton button,
 [data-testid="stSidebar"] { background-color: #12171a; border-right: 1px solid #23292c; }
 
 /* Hide Streamlit's own chrome (visible to every visitor, not just the app
-   owner): the light-colored top header/toolbar and the "Made with
-   Streamlit" footer badge. */
+   owner): the light-colored top header, the deploy/menu buttons, and the
+   "Made with Streamlit" footer badge. NOT the whole stToolbar -- the
+   sidebar-expand arrow (stExpandSidebarButton) lives inside it, and hiding
+   an ancestor with display:none hides that too, regardless of any CSS
+   trying to override the child directly (confirmed the hard way: this used
+   to make the sidebar unreachable on every device). */
 [data-testid="stHeader"] { background: #0b0e0f; }
-[data-testid="stToolbar"] { display: none; }
+[data-testid="stToolbarActions"] { display: none !important; }
+[data-testid="stMainMenuButton"] { display: none !important; }
+[data-testid="stAppDeployButton"] { display: none !important; }
 [data-testid="stDecoration"] { display: none; }
+[data-testid="stExpandSidebarButton"] { color: #c98a4b !important; }
 footer { visibility: hidden; }
 .stApp > header { background: transparent; }
 .block-container { padding-top: 2rem; max-width: 900px; margin: 0 auto; }
@@ -65,23 +92,22 @@ footer { visibility: hidden; }
    characters render as "tofu" on many mobile browsers -- confirmed on a
    real device); desktop shows the live ASCII-art text instead, since
    desktop monospace fonts reliably have those glyphs. */
-.mobile-only { display: block; }
-.desktop-only { display: none; }
+.mobile-only { display: block !important; }
+.desktop-only { display: none !important; }
 @media (min-width: 768px) {
-    .mobile-only { display: none; }
-    .desktop-only { display: block; }
+    .mobile-only { display: none !important; }
+    .desktop-only { display: block !important; }
 }
 
 .coconut-banner-img {
     max-width: 320px;
     width: 100%;
     height: auto;
-    display: block;
     margin: 0 0 0.75rem 0;
 }
 .coconut-logo-text {
     font-size: 0.55rem; line-height: 1.15; white-space: pre; overflow-x: auto;
-    color: #c98a4b; margin: 0 0 0.75rem 0; font-family: inherit;
+    color: #c98a4b; margin: 0 0 0.75rem 0; font-family: "CoconutLogoFont", monospace;
 }
 @media (min-width: 1000px) {
     .coconut-logo-text { font-size: 0.68rem; }
@@ -103,7 +129,10 @@ footer { visibility: hidden; }
     width: .55rem; height: .55rem; border-radius: 50%; background: #3a4145;
 }
 
-div[data-testid="stVerticalBlockBorderWrapper"] {
+/* Targets the specific keyed container (key="output-panel"), not the
+   generic stVerticalBlock testid every nested container shares -- a
+   blanket testid selector would style every container on the page. */
+.st-key-output-panel {
     background: #12171a !important;
     border: 1px solid #23292c !important;
     border-top: none !important;
@@ -114,7 +143,7 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
    screen. max-height (not height) so it only ever shrinks, never grows
    past whatever Python set. */
 @media (max-width: 767px) {
-    div[data-testid="stVerticalBlockBorderWrapper"] { max-height: 380px !important; }
+    .st-key-output-panel { max-height: 380px !important; }
 }
 
 /* Chip row: Streamlit's default vertical block stacks children top-to-
@@ -166,6 +195,7 @@ div.stButton > button:hover { border-color: #8a6238; color: #c98a4b; }
 }
 </style>
 """
+st.markdown(FONT_FACE_CSS, unsafe_allow_html=True)
 st.markdown(TERMINAL_CSS, unsafe_allow_html=True)
 
 
@@ -188,8 +218,12 @@ model, tokenizer, device, step = load_model()
 
 _logo_b64 = base64.b64encode(LOGO_PATH.read_bytes()).decode("ascii")
 st.markdown(
-    f'<img class="coconut-banner-img mobile-only" src="data:image/png;base64,{_logo_b64}" alt="Coconut">'
-    f'<pre class="coconut-logo-text desktop-only">{html.escape(LARGE_LOGO)}</pre>',
+    f'<img class="coconut-banner-img mobile-only" src="data:image/png;base64,{_logo_b64}" alt="Coconut">',
+    unsafe_allow_html=True,
+)
+_logo_lines_html = "<br>".join(html.escape(line) for line in LARGE_LOGO.splitlines())
+st.markdown(
+    f'<div class="coconut-logo-text desktop-only">{_logo_lines_html}</div>',
     unsafe_allow_html=True,
 )
 st.markdown(
@@ -257,7 +291,7 @@ st.markdown(
 )
 
 clicked_prompt = None
-with st.container(height=OUTPUT_BOX_HEIGHT, border=True):
+with st.container(height=OUTPUT_BOX_HEIGHT, border=True, key="output-panel"):
     with st.container(key="chip-row"):
         for example in EXAMPLE_PROMPTS:
             if st.button(example, key=f"chip-{example}"):

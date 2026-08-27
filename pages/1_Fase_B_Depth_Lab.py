@@ -44,8 +44,14 @@ html, body, [class*="css"], .stApp, .stMarkdown, .stButton button, .stTextInput 
 .stApp, .stApp p, .stApp label, .stApp span { color: #d8dee2; }
 [data-testid="stSidebar"] { background-color: #12171a; border-right: 1px solid #23292c; }
 [data-testid="stHeader"] { background: #0b0e0f; }
-[data-testid="stToolbar"] { display: none; }
+/* NOT the whole stToolbar -- the sidebar-expand button lives inside it,
+   and display:none on an ancestor hides descendants no matter what CSS
+   targets the child directly (see streamlit_app.py for the full story). */
+[data-testid="stToolbarActions"] { display: none !important; }
+[data-testid="stMainMenuButton"] { display: none !important; }
+[data-testid="stAppDeployButton"] { display: none !important; }
 [data-testid="stDecoration"] { display: none; }
+[data-testid="stExpandSidebarButton"] { color: #c98a4b !important; }
 footer { visibility: hidden; }
 .block-container { max-width: 1100px; margin: 0 auto; }
 
