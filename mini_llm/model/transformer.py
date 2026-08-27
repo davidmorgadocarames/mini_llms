@@ -63,20 +63,30 @@ class GPT(nn.Module):
             loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)), targets.reshape(-1))
         return logits, loss
 
-    @torch.no_grad()
+    def generate_stream(self, idx: torch.Tensor, max_new_tokens: int,
+                         temperature: float = 1.0, top_k: int | None = None):
+        """Yields the growing sequence tensor after each newly sampled token, so
+        callers (e.g. the Coconut CLI) can print/decode as tokens arrive instead
+        of waiting for the whole completion."""
+        with torch.no_grad():
+            for _ in range(max_new_tokens):
+                idx_cond = idx if idx.size(1) <= self.config.block_size else idx[:, -self.config.block_size:]
+                logits, _ = self(idx_cond)
+                logits = logits[:, -1, :] / temperature
+                if top_k is not None:
+                    v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
+                    logits[logits < v[:, [-1]]] = -float("inf")
+                probs = F.softmax(logits, dim=-1)
+                idx_next = torch.multinomial(probs, num_samples=1)
+                idx = torch.cat((idx, idx_next), dim=1)
+                yield idx
+
     def generate(self, idx: torch.Tensor, max_new_tokens: int,
                  temperature: float = 1.0, top_k: int | None = None) -> torch.Tensor:
-        for _ in range(max_new_tokens):
-            idx_cond = idx if idx.size(1) <= self.config.block_size else idx[:, -self.config.block_size:]
-            logits, _ = self(idx_cond)
-            logits = logits[:, -1, :] / temperature
-            if top_k is not None:
-                v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
-                logits[logits < v[:, [-1]]] = -float("inf")
-            probs = F.softmax(logits, dim=-1)
-            idx_next = torch.multinomial(probs, num_samples=1)
-            idx = torch.cat((idx, idx_next), dim=1)
-        return idx
+        out = idx
+        for out in self.generate_stream(idx, max_new_tokens, temperature, top_k):
+            pass
+        return out
 
     def num_parameters(self) -> int:
         return sum(p.numel() for p in self.parameters())

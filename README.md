@@ -33,6 +33,30 @@ generación (`--prompt "In 1943, the"`):
 El modelo aprendió gramática, puntuación, y hasta convenciones propias del formato
 WikiText (como `@-@` para guiones) sin que se le indicara explícitamente.
 
+### Coconut — UI de terminal
+
+Una pequeña interfaz de terminal para hablar con el modelo, al estilo Claude Code:
+
+```
+ ▛███▜   Coconut v0.1.0
+ █●●●█   26.4M params · step 20,000
+ ▙███▟   ~\pc\proyectos ia\proyecto_llm_mini
+
+> Once upon a time
+Once upon a time of war due to the inability to attack the ships .
+ <|endoftext|>  The German plan was to have a significant effect on naval
+forces, and the British, in the form of a major...
+```
+
+```bash
+python coconut.py
+```
+
+El texto se genera token a token en vivo. Comandos disponibles dentro de la sesión:
+`/temp <valor>`, `/tokens <n>`, `/help`, `/salir`.
+
+🌐 **[Prueba la demo interactiva en el navegador](https://davidmorgadocarames.github.io/mini_llms/)** (sin instalar nada).
+
 ## Fase B — ¿Por qué los Transformers fallan en razonamiento recursivo profundo?
 
 Un Transformer estándar entrenado para evaluar expresiones anidadas como
