@@ -18,6 +18,7 @@ Usage:
 """
 
 import argparse
+import dataclasses
 import math
 from dataclasses import dataclass
 from pathlib import Path
@@ -355,11 +356,11 @@ def main() -> None:
             if step > 0 and step % args.eval_interval == 0:
                 val_acc = evaluate_exact_match(model, tokenizer, val_examples[:200], args.device)
                 print(f"  [eval] step {step} val exact-match {val_acc:.3f}")
-                torch.save({"model": model.state_dict(), "config": config, "step": step},
+                torch.save({"model": model.state_dict(), "config": dataclasses.asdict(config), "step": step},
                            out_dir / f"encdec_{args.domain}.pt")
             step += 1
 
-    torch.save({"model": model.state_dict(), "config": config, "step": args.max_steps},
+    torch.save({"model": model.state_dict(), "config": dataclasses.asdict(config), "step": args.max_steps},
                out_dir / f"encdec_{args.domain}.pt")
 
     print("\nfinal OOD exact-match by depth:")

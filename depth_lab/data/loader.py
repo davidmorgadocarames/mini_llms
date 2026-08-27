@@ -8,6 +8,7 @@ comparison.
 import torch
 from torch.utils.data import Dataset
 
+from depth_lab.data.reduce import reduction_trace
 from depth_lab.tokenizer import CharTokenizer
 
 
@@ -90,3 +91,64 @@ class Seq2SeqDataset(Dataset):
         src = torch.tensor(src_ids, dtype=torch.long)
         tgt = torch.tensor(tgt_ids, dtype=torch.long)
         return src, tgt[:-1], tgt[1:]
+
+
+def build_locator_examples(examples: list[dict]) -> list[dict]:
+    """Every intermediate state of every expression's reduction trace becomes
+    one locator training instance: {"expr": <state>, "span": (start, end)} --
+    the locator's job is to point at the next innermost sub-expression given
+    *any* partially-reduced state, not just the original expression."""
+    out = []
+    for ex in examples:
+        for step in reduction_trace(ex["expr"]):
+            out.append({"expr": step.expr, "span": step.span})
+    return out
+
+
+def build_replacer_examples(examples: list[dict]) -> list[dict]:
+    """Every reduction step's isolated span becomes one replacer training
+    instance: {"expr": reversed(span_text), "value": step.value}. The span
+    text is reversed before framing as "<expr> => <value>" -- the paper's
+    trick for helping a no-positional-encoding model localize the operator;
+    see depth_lab/models/replacer.py's docstring for the fuller rationale."""
+    out = []
+    for ex in examples:
+        for step in reduction_trace(ex["expr"]):
+            out.append({"expr": step.span_text[::-1], "value": step.value})
+    return out
+
+
+class LocatorDataset(Dataset):
+    """Each item is a fixed-length (block_size) pair (ids, labels, pad_mask)
+    for per-character binary classification: labels[i] = 1.0 if character i
+    is part of the target span, else 0.0. pad_mask[i] = True at padding
+    positions, so callers can exclude them from the loss. Character-level
+    tokenization means token index == character index directly, so span
+    boundaries from depth_lab.data.reduce need no translation."""
+
+    def __init__(self, examples: list[dict], tokenizer: CharTokenizer, block_size: int):
+        self.examples = examples
+        self.tokenizer = tokenizer
+        self.block_size = block_size
+
+    def __len__(self) -> int:
+        return len(self.examples)
+
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        ex = self.examples[idx]
+        expr, (start, end) = ex["expr"], ex["span"]
+        if len(expr) > self.block_size:
+            raise ValueError(f"expr needs {len(expr)} tokens, exceeds block_size={self.block_size}: {expr!r}")
+
+        ids = self.tokenizer.encode(expr)
+        pad_len = self.block_size - len(ids)
+        ids = ids + [self.tokenizer.pad_id] * pad_len
+
+        labels = [1.0 if start <= i < end else 0.0 for i in range(len(expr))] + [0.0] * pad_len
+        pad_mask = [False] * len(expr) + [True] * pad_len
+
+        return (
+            torch.tensor(ids, dtype=torch.long),
+            torch.tensor(labels, dtype=torch.float32),
+            torch.tensor(pad_mask, dtype=torch.bool),
+        )
