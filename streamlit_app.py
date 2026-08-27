@@ -18,11 +18,13 @@ import torch
 from huggingface_hub import hf_hub_download
 
 import streamlit as st
+from coconut_tui.logo import LARGE_LOGO
 from mini_llm.model import GPT
 from mini_llm.tokenizer import BPETokenizer, clean_for_display
 
 HF_REPO = "davidmorgado/coconut-mini-llm"
 LOGO_PATH = Path(__file__).resolve().parent / "coconut_tui" / "assets" / "logo.png"
+OUTPUT_BOX_HEIGHT = 520  # desktop size; shrunk back down for phones via a media query below
 
 EXAMPLE_PROMPTS = [
     "Once upon a time",
@@ -33,7 +35,9 @@ EXAMPLE_PROMPTS = [
     "The war began when",
 ]
 
-st.set_page_config(page_title="Coconut mini-LLM", page_icon="🥥")
+st.set_page_config(
+    page_title="Coconut mini-LLM", page_icon="🥥", layout="wide", initial_sidebar_state="collapsed"
+)
 
 TERMINAL_CSS = """
 <style>
@@ -54,7 +58,19 @@ html, body, [class*="css"], .stApp, .stMarkdown, .stButton button,
 [data-testid="stDecoration"] { display: none; }
 footer { visibility: hidden; }
 .stApp > header { background: transparent; }
-.block-container { padding-top: 2rem; }
+.block-container { padding-top: 2rem; max-width: 900px; margin: 0 auto; }
+
+/* Mobile (<768px) vs desktop (>=768px): same page, CSS decides what's
+   visible. Mobile keeps the pre-rendered PNG logo (block-drawing Unicode
+   characters render as "tofu" on many mobile browsers -- confirmed on a
+   real device); desktop shows the live ASCII-art text instead, since
+   desktop monospace fonts reliably have those glyphs. */
+.mobile-only { display: block; }
+.desktop-only { display: none; }
+@media (min-width: 768px) {
+    .mobile-only { display: none; }
+    .desktop-only { display: block; }
+}
 
 .coconut-banner-img {
     max-width: 320px;
@@ -62,6 +78,13 @@ footer { visibility: hidden; }
     height: auto;
     display: block;
     margin: 0 0 0.75rem 0;
+}
+.coconut-logo-text {
+    font-size: 0.55rem; line-height: 1.15; white-space: pre; overflow-x: auto;
+    color: #c98a4b; margin: 0 0 0.75rem 0; font-family: inherit;
+}
+@media (min-width: 1000px) {
+    .coconut-logo-text { font-size: 0.68rem; }
 }
 .coconut-caption { color: #7b8790; font-size: 0.85rem; margin-bottom: 0.75rem; }
 .coconut-info {
@@ -85,6 +108,13 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
     border: 1px solid #23292c !important;
     border-top: none !important;
     border-radius: 0 0 10px 10px !important;
+}
+/* The output box is given a generous fixed height in Python (sized for
+   desktop); shrink it back down on phones so it doesn't dominate a small
+   screen. max-height (not height) so it only ever shrinks, never grows
+   past whatever Python set. */
+@media (max-width: 767px) {
+    div[data-testid="stVerticalBlockBorderWrapper"] { max-height: 380px !important; }
 }
 
 /* Chip row: Streamlit's default vertical block stacks children top-to-
@@ -158,7 +188,8 @@ model, tokenizer, device, step = load_model()
 
 _logo_b64 = base64.b64encode(LOGO_PATH.read_bytes()).decode("ascii")
 st.markdown(
-    f'<img class="coconut-banner-img" src="data:image/png;base64,{_logo_b64}" alt="Coconut">',
+    f'<img class="coconut-banner-img mobile-only" src="data:image/png;base64,{_logo_b64}" alt="Coconut">'
+    f'<pre class="coconut-logo-text desktop-only">{html.escape(LARGE_LOGO)}</pre>',
     unsafe_allow_html=True,
 )
 st.markdown(
@@ -184,7 +215,7 @@ with st.sidebar:
     # (this has happened more than once) is instantly checkable instead of
     # guessed at: if this doesn't match the latest commit, it's a caching
     # issue on their end, not a bug in the code.
-    st.caption("build: 2026-08-27.4 (real line breaks, not markdown-eaten)")
+    st.caption("build: 2026-08-27.5 (responsive: desktop logo/box, collapsed mobile sidebar)")
 
 for key, default in (
     ("total_tokens", 0),
@@ -226,7 +257,7 @@ st.markdown(
 )
 
 clicked_prompt = None
-with st.container(height=380, border=True):
+with st.container(height=OUTPUT_BOX_HEIGHT, border=True):
     with st.container(key="chip-row"):
         for example in EXAMPLE_PROMPTS:
             if st.button(example, key=f"chip-{example}"):

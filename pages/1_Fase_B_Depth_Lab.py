@@ -30,7 +30,9 @@ from depth_lab.tokenizer import CharTokenizer
 HF_REPO = "davidmorgado/coconut-mini-llm"
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-st.set_page_config(page_title="Fase B - Depth Lab", page_icon="\U0001f300")
+st.set_page_config(
+    page_title="Fase B - Depth Lab", page_icon="\U0001f300", layout="wide", initial_sidebar_state="collapsed"
+)
 
 PAGE_CSS = """
 <style>
@@ -45,6 +47,7 @@ html, body, [class*="css"], .stApp, .stMarkdown, .stButton button, .stTextInput 
 [data-testid="stToolbar"] { display: none; }
 [data-testid="stDecoration"] { display: none; }
 footer { visibility: hidden; }
+.block-container { max-width: 1100px; margin: 0 auto; }
 
 .depthlab-expr { font-size: 1.1rem; padding: 0.6rem 0.8rem; background: #12171a;
     border: 1px solid #23292c; border-radius: 6px; margin: 0.5rem 0 1rem; }
