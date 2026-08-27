@@ -24,6 +24,7 @@ data/processed/
 *.bin
 mini_llm/data/artifacts/
 depth_lab/data/artifacts/
+coconut_lab/data/artifacts/
 
 # HuggingFace datasets/tokenizers cache
 .cache/
