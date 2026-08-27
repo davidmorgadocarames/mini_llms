@@ -42,12 +42,28 @@ html, body, [class*="css"], .stApp, .stMarkdown, .stButton button,
 .stApp, .stApp p, .stApp label, .stApp span { color: #d8dee2; }
 [data-testid="stSidebar"] { background-color: #12171a; border-right: 1px solid #23292c; }
 
+/* The big block-character ASCII art needs a real monospace font with full
+   Unicode Block Elements coverage and a wide viewport -- mobile browsers
+   often substitute tofu/generic glyphs for those characters, so we hide it
+   below 700px and show a plain-text fallback instead (emoji + text render
+   reliably everywhere). */
 pre.coconut-banner {
-    color: #c98a4b;
+    color: #c98a4b !important;
     font-size: 0.5rem;
     line-height: 1.15;
     overflow-x: auto;
     margin: 0 0 0.75rem 0;
+}
+.coconut-banner-compact {
+    display: none;
+    color: #c98a4b;
+    font-size: 1.4rem;
+    font-weight: 700;
+    margin: 0 0 0.75rem 0;
+}
+@media (max-width: 700px) {
+    pre.coconut-banner { display: none; }
+    .coconut-banner-compact { display: block; }
 }
 .coconut-caption { color: #7b8790; font-size: 0.85rem; margin-bottom: 0.75rem; }
 .coconut-info {
@@ -99,6 +115,7 @@ def load_model():
 model, tokenizer, device, step = load_model()
 
 st.markdown(f'<pre class="coconut-banner">{html.escape(LARGE_LOGO)}</pre>', unsafe_allow_html=True)
+st.markdown('<div class="coconut-banner-compact">🥥 Coconut</div>', unsafe_allow_html=True)
 st.markdown(
     f'<div class="coconut-caption">Coconut &middot; {model.num_parameters() / 1e6:.1f}M params '
     f"&middot; step {step:,} &middot; corriendo en <code>{device}</code></div>",

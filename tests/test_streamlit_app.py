@@ -16,7 +16,8 @@ def test_app_runs_without_exception_and_renders_banner():
     at.run()
     assert not at.exception
     markdown_html = "\n".join(m.value for m in at.markdown)
-    assert "coconut-banner" in markdown_html  # the ASCII logo
+    assert "coconut-banner" in markdown_html  # the large ASCII logo
+    assert "coconut-banner-compact" in markdown_html  # the mobile fallback
     assert "Coconut" in markdown_html  # the caption line
     assert "tokens generados" in markdown_html  # the live token counter
 
