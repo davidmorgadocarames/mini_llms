@@ -13,16 +13,29 @@ Proyecto de portfolio: construir un mini-LLM desde cero en dos fases, subido a G
   el camino apareció un error real de infraestructura (descarga de HuggingFace colgada
   por el backend Xet en esta red; arreglado con `HF_HUB_DISABLE_XET=1`), justo el tipo
   de aprendizaje "manos en la masa" que se buscaba en esta fase.
-- **[EN CURSO] Fase B — Laboratorio de generalización de profundidad**: reproduce y
+- **[HECHO] Fase B — Laboratorio de generalización de profundidad**: reproduce y
   extiende "Exploring Depth Generalization in Large Language Models for Solving
   Recursive Logic Tasks" (Zhiyuan He, AAAI 2026, `docs/papers/`). Compara tres
-  arquitecturas — decoder-only, encoder-decoder clásico (`Attention Is All You Need`), y
-  el pipeline "Looped Locate-and-Replace" del paper — sobre expresiones de código Python
-  anidadas generadas sintéticamente (`(3 + (2 * (5 - 1)))`, `not (True and (False or
-  True))`). Objetivo: reproducir el fallo de accuracy en profundidades OOD y demostrar
-  cómo cada arquitectura lo mitiga (o no). Reutiliza bloques de `mini_llm/model/`.
-  Generador de datos ya implementado y probado (`depth_lab/data/generator.py`);
-  pendiente: modelos, arnés de evaluación y demo interactiva.
+  arquitecturas sobre expresiones booleanas anidadas generadas sintéticamente
+  (`(True and (False or not (True)))`) con profundidad y longitud desacopladas
+  (`max_shallow`, para que la profundidad sea la única variable que cambia en el
+  experimento): decoder-only (reutiliza `mini_llm.model.GPT`), encoder-decoder clásico
+  hecho desde cero (`Attention Is All You Need`: sinusoidal PE, MHA estándar, LayerNorm,
+  MLP con ReLU), y el pipeline "Looped Locate-and-Replace" del paper (locator con ALiBi +
+  clasificación por token, replacer con NoPE + generación, bucle de reducción iterativo).
+  Entrenadas solo en profundidad ≤5, evaluadas en profundidad 6-12 (out-of-distribution,
+  nunca tocado hasta la evaluación final). Resultado (`depth_lab/eval/results/`,
+  enlazado desde el README): LLR domina en profundidades OOD moderadas (6-9,
+  hasta 98.8% vs 78.6% del baseline) pero pierde su ventaja en las más extremas
+  (10-12) por composición de error a través de la cadena de pasos, que crece con
+  la profundidad — un hallazgo real y verificado, no la historia simple de "LLR
+  siempre gana". Demo interactiva en `pages/1_Fase_B_Depth_Lab.py` (segunda página
+  de la misma app de Streamlit de Fase A), con la traza de reducción de LLR animada
+  paso a paso. Nota de proceso: al reproducir a escala real, un checkpoint de
+  ~400 pasos daba accuracy OOD casi nula en LLR; antes de reportarlo como fallo de
+  arquitectura, se re-entrenó más a fondo (3000 pasos) y el patrón desapareció —
+  era infra-entrenamiento, no un bug. Mismo criterio de verificar antes de concluir
+  que en el error de Xet de Fase A.
 - **[HECHO] Coconut TUI**: interfaz de agente de terminal estilo Claude Code
   (`coconut_tui/`) sobre el modelo de Fase A — panel de conversación con streaming,
   panel de actividad plegable, diffs coloreados, arquitectura basada en eventos
