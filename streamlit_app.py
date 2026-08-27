@@ -184,7 +184,7 @@ with st.sidebar:
     # (this has happened more than once) is instantly checkable instead of
     # guessed at: if this doesn't match the latest commit, it's a caching
     # issue on their end, not a bug in the code.
-    st.caption("build: 2026-08-27.3 (headers+EOT cleanup)")
+    st.caption("build: 2026-08-27.4 (real line breaks, not markdown-eaten)")
 
 for key, default in (
     ("total_tokens", 0),
@@ -205,9 +205,16 @@ def render_output(prompt_text: str, body_text: str, cursor: bool = False) -> str
     # it "jumps" to a new, unrelated article; show it as a paragraph break
     # instead of the raw <|endoftext|> string.
     body_display = clean_for_display(body_text)
+    # st.markdown() runs its content through a Markdown parser even with
+    # unsafe_allow_html=True, which collapses plain "\n\n" the way Markdown
+    # normally treats whitespace -- confirmed on a real deploy: the
+    # uppercase header transform worked but the line break silently
+    # disappeared. Explicit <br> tags are immune to that, since Markdown
+    # never touches text inside raw HTML tags it's already emitting.
+    body_html = html.escape(body_display).replace("\n\n", "<br><br>")
     return (
         '<pre id="output-frame"><span class="prompt-echo" style="color:#6fcf97">'
-        f"{html.escape(prompt_text)}</span> {html.escape(body_display)}{tail}</pre>"
+        f"{html.escape(prompt_text)}</span> {body_html}{tail}</pre>"
     )
 
 

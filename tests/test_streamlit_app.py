@@ -81,6 +81,24 @@ def test_generated_output_persists_in_the_scroll_panel_after_a_rerun():
     # unrelated rerun (clicking a different example chip)
     at.button[1].click().run()
     markdown_html_after = "\n".join(m.value for m in at.markdown)
-    # rendering applies clean_for_display() (see test_tokenizer_display.py),
-    # so compare against the same transformation, not the raw stored text
-    assert html.escape(clean_for_display(at.session_state["last_output_body"])) in markdown_html_after
+    # rendering applies clean_for_display() and then turns its "\n\n" into
+    # real <br><br> tags (Markdown parsing otherwise silently swallows plain
+    # newlines -- see test below), so compare against that same
+    # transformation, not the raw stored text.
+    expected = html.escape(clean_for_display(at.session_state["last_output_body"])).replace("\n\n", "<br><br>")
+    assert expected in markdown_html_after
+
+
+@pytest.mark.slow
+def test_paragraph_breaks_render_as_actual_br_tags_not_plain_newlines():
+    """Regression test for a real deploy bug: st.markdown() runs content
+    through a Markdown parser even with unsafe_allow_html=True, which
+    silently collapsed plain "\\n\\n" -- the uppercase header transform
+    showed up but the line break vanished. <br> tags are immune to that."""
+    at = AppTest.from_file(str(APP_PATH), default_timeout=120)
+    at.run()
+    at.text_input[0].set_value("The war began when").run()
+
+    markdown_html = "\n".join(m.value for m in at.markdown)
+    if "\n\n" in clean_for_display(at.session_state["last_output_body"]):
+        assert "<br><br>" in markdown_html
