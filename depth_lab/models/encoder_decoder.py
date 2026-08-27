@@ -230,28 +230,33 @@ def build_config(vocab_size: int, n_layer: int = 3, d_model: int = 256, n_head: 
 
 
 @torch.no_grad()
+def predict_one(model: EncoderDecoderTransformer, tokenizer: CharTokenizer, expr: str, device: str,
+                 src_block_size: int = SRC_BLOCK_SIZE, max_new_tokens: int = 6) -> str:
+    pad_id = tokenizer.pad_id
+    src_ids = tokenizer.encode(expr)
+    if len(src_ids) > src_block_size:
+        raise ValueError(f"expr needs {len(src_ids)} tokens, exceeds src_block_size={src_block_size}")
+    src_ids = src_ids + [pad_id] * (src_block_size - len(src_ids))
+    src = torch.tensor([src_ids], dtype=torch.long, device=device)
+    src_pad_mask = src == pad_id
+
+    out_ids: list[int] = []
+    for grown in model.generate_stream(src, tokenizer.bos_id, max_new_tokens, src_key_padding_mask=src_pad_mask):
+        next_id = grown[0, -1].item()
+        if next_id == tokenizer.eos_id:
+            break
+        out_ids.append(next_id)
+    return tokenizer.decode(out_ids)
+
+
+@torch.no_grad()
 def evaluate_exact_match(model: EncoderDecoderTransformer, tokenizer: CharTokenizer, examples: list[dict],
                           device: str, src_block_size: int = SRC_BLOCK_SIZE, max_new_tokens: int = 6) -> float:
     model.eval()
-    pad_id = tokenizer.pad_id
-    correct = 0
-    for ex in examples:
-        src_ids = tokenizer.encode(ex["expr"])
-        if len(src_ids) > src_block_size:
-            raise ValueError(f"expr needs {len(src_ids)} tokens, exceeds src_block_size={src_block_size}")
-        src_ids = src_ids + [pad_id] * (src_block_size - len(src_ids))
-        src = torch.tensor([src_ids], dtype=torch.long, device=device)
-        src_pad_mask = src == pad_id
-
-        out_ids: list[int] = []
-        for grown in model.generate_stream(src, tokenizer.bos_id, max_new_tokens, src_key_padding_mask=src_pad_mask):
-            next_id = grown[0, -1].item()
-            if next_id == tokenizer.eos_id:
-                break
-            out_ids.append(next_id)
-        prediction = tokenizer.decode(out_ids)
-        if prediction == render_value(ex["value"]):
-            correct += 1
+    correct = sum(
+        1 for ex in examples
+        if predict_one(model, tokenizer, ex["expr"], device, src_block_size, max_new_tokens) == render_value(ex["value"])
+    )
     model.train()
     return correct / len(examples)
 

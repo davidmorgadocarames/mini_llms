@@ -65,10 +65,11 @@ es implementarla de nuevo, sin tocar el resto.
 - 🌐 **[Réplica estática (GitHub Pages)](https://davidmorgadocarames.github.io/mini_llms/)**
   — reproduce con animación de escritura generaciones reales pregrabadas del modelo.
   No hay servidor detrás, así que solo funciona con los prompts de ejemplo.
-- 🚀 **Inferencia real en vivo (Streamlit Community Cloud)** — el modelo corriendo de
-  verdad en un servidor, cargado desde el checkpoint publicado en
+- 🚀 **[Inferencia real en vivo (Streamlit Community Cloud)](https://minillms-p2qhjk4tkphgwcw4yqfqks.streamlit.app)**
+  — el modelo corriendo de verdad en un servidor, cargado desde el checkpoint publicado en
   [HuggingFace](https://huggingface.co/davidmorgado/coconut-mini-llm). Código en
-  [`streamlit_app.py`](streamlit_app.py). *(Enlace pendiente de desplegar — ver más abajo.)*
+  [`streamlit_app.py`](streamlit_app.py). La misma app tiene una segunda página,
+  **Fase B — Depth Lab** (menú lateral), con la demo interactiva descrita más abajo.
 
 ## Fase B — ¿Por qué los Transformers fallan en razonamiento recursivo profundo?
 
@@ -122,6 +123,14 @@ Reproducible con:
 python -m depth_lab.data.build_dataset          # genera el dataset (train/val/test por profundidad)
 python -m depth_lab.eval.run_eval               # entrena las 3 arquitecturas y genera el gráfico
 ```
+
+### Demo interactiva — Depth Lab
+
+La página **Fase B — Depth Lab** de la [app de Streamlit](https://minillms-p2qhjk4tkphgwcw4yqfqks.streamlit.app)
+(`pages/1_Fase_B_Depth_Lab.py`) deja escribir o generar una expresión anidada a la
+profundidad que se quiera y evaluarla en vivo con las tres arquitecturas a la vez,
+incluyendo la traza paso a paso de la reducción de LLR animada (qué sub-expresión
+localiza el locator en cada paso, y qué valor le asigna el replacer).
 
 ## Contexto y fundamentos
 

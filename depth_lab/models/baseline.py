@@ -38,25 +38,27 @@ def build_config(vocab_size: int, block_size: int = BLOCK_SIZE, n_layer: int = 4
 
 
 @torch.no_grad()
+def predict_one(model: GPT, tokenizer: CharTokenizer, expr: str, device: str, max_new_tokens: int = 8) -> str:
+    """Feeds "<bos><expr> => " and generates greedily until <eos> (or
+    max_new_tokens), returning the decoded completion as a string."""
+    idx = torch.tensor([[tokenizer.bos_id, *tokenizer.encode(f"{expr} => ")]], dtype=torch.long, device=device)
+    out_ids: list[int] = []
+    for grown in model.generate_stream(idx, max_new_tokens, temperature=1e-6):
+        next_id = grown[0, -1].item()
+        if next_id == tokenizer.eos_id:
+            break
+        out_ids.append(next_id)
+    return tokenizer.decode(out_ids)
+
+
+@torch.no_grad()
 def evaluate_exact_match(model: GPT, tokenizer: CharTokenizer, examples: list[dict],
                           device: str, max_new_tokens: int = 8) -> float:
-    """Feeds "<bos><expr> => " and generates greedily until <eos> (or
-    max_new_tokens), then compares the decoded completion against the true
-    value as a string -- exact-match, the same metric the paper reports."""
+    """Exact-match accuracy: the same metric the paper reports."""
     model.eval()
-    dataset = ExprDataset(examples, tokenizer, block_size=model.config.block_size)
-    correct = 0
-    for i, ex in enumerate(examples):
-        idx = torch.tensor([dataset.prompt_ids(i)], dtype=torch.long, device=device)
-        out_ids: list[int] = []
-        for grown in model.generate_stream(idx, max_new_tokens, temperature=1e-6):
-            next_id = grown[0, -1].item()
-            if next_id == tokenizer.eos_id:
-                break
-            out_ids.append(next_id)
-        prediction = tokenizer.decode(out_ids)
-        if prediction == str(ex["value"]):
-            correct += 1
+    correct = sum(
+        1 for ex in examples if predict_one(model, tokenizer, ex["expr"], device, max_new_tokens) == str(ex["value"])
+    )
     model.train()
     return correct / len(examples)
 
