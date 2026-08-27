@@ -110,7 +110,7 @@ div.stButton > button {
 div.stButton > button:hover { border-color: #8a6238; color: #c98a4b; }
 
 #output-frame {
-    white-space: pre-wrap; word-break: break-word;
+    white-space: pre-wrap !important; word-break: break-word;
     line-height: 1.55; font-size: 0.92rem; color: #d8dee2;
     margin: 0 0 1rem; font-family: inherit;
 }
@@ -180,6 +180,11 @@ with st.sidebar:
     max_new_tokens = st.slider("Tokens a generar", 20, 400, 150, 10)
     st.markdown("---")
     st.markdown("[Codigo en GitHub](https://github.com/davidmorgadocarames/mini_llms)")
+    # Bumped on every meaningful change, so a stale Streamlit Cloud deploy
+    # (this has happened more than once) is instantly checkable instead of
+    # guessed at: if this doesn't match the latest commit, it's a caching
+    # issue on their end, not a bug in the code.
+    st.caption("build: 2026-08-27.3 (headers+EOT cleanup)")
 
 for key, default in (
     ("total_tokens", 0),
