@@ -4,20 +4,25 @@ Proyecto de portfolio: construir un mini-LLM desde cero en dos fases, subido a G
 
 ## Roadmap
 
-- **[EN CURSO] Fase 0 — Andamiaje**: estructura de repo, docs, dependencias.
-- **Fase A — Mini-LLM de propósito general**: decoder-only con arquitectura moderna
-  (RoPE, RMSNorm, SwiGLU, Grouped Query Attention), entrenado sobre texto real.
-  Inspirado en [Ashx098/Mini-LLM](https://github.com/Ashx098/Mini-LLM), recortado a
-  nuestro hardware (RTX 4060, 8GB). Deliberadamente "manos en la masa": se espera
-  depurar errores reales de forma/dtype/memoria como parte del aprendizaje.
-- **Fase B — Laboratorio de generalización de profundidad**: reproduce y extiende
-  "Exploring Depth Generalization in Large Language Models for Solving Recursive Logic
-  Tasks" (Zhiyuan He, AAAI 2026, `docs/papers/`). Compara tres arquitecturas —
-  decoder-only, encoder-decoder clásico (`Attention Is All You Need`), y el pipeline
-  "Looped Locate-and-Replace" del paper — sobre expresiones de código Python anidadas
-  generadas sintéticamente (`(3 + (2 * (5 - 1)))`, `not (True and (False or True))`).
-  Objetivo: reproducir el fallo de accuracy en profundidades OOD y demostrar cómo cada
-  arquitectura lo mitiga (o no). Reutiliza bloques de `mini_llm/model/`.
+- **[HECHO] Fase 0 — Andamiaje**: estructura de repo, docs, dependencias.
+- **[HECHO] Fase A — Mini-LLM de propósito general**: decoder-only con arquitectura
+  moderna (RoPE, RMSNorm, SwiGLU, Grouped Query Attention), entrenado sobre WikiText-103
+  real. Inspirado en [Ashx098/Mini-LLM](https://github.com/Ashx098/Mini-LLM), recortado a
+  nuestro hardware (RTX 4060, 8GB). 26.4M parámetros, val_loss final ≈ 2.95 tras 20.000
+  pasos (~1.6h). Ver README para detalles y ejemplo de generación. Nota de proceso: en
+  el camino apareció un error real de infraestructura (descarga de HuggingFace colgada
+  por el backend Xet en esta red; arreglado con `HF_HUB_DISABLE_XET=1`), justo el tipo
+  de aprendizaje "manos en la masa" que se buscaba en esta fase.
+- **[EN CURSO] Fase B — Laboratorio de generalización de profundidad**: reproduce y
+  extiende "Exploring Depth Generalization in Large Language Models for Solving
+  Recursive Logic Tasks" (Zhiyuan He, AAAI 2026, `docs/papers/`). Compara tres
+  arquitecturas — decoder-only, encoder-decoder clásico (`Attention Is All You Need`), y
+  el pipeline "Looped Locate-and-Replace" del paper — sobre expresiones de código Python
+  anidadas generadas sintéticamente (`(3 + (2 * (5 - 1)))`, `not (True and (False or
+  True))`). Objetivo: reproducir el fallo de accuracy en profundidades OOD y demostrar
+  cómo cada arquitectura lo mitiga (o no). Reutiliza bloques de `mini_llm/model/`.
+  Generador de datos ya implementado y probado (`depth_lab/data/generator.py`);
+  pendiente: modelos, arnés de evaluación y demo interactiva.
 
 ## Entorno
 

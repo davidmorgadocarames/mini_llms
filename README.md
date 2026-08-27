@@ -21,6 +21,18 @@ python -m mini_llm.train.train --max-steps 20000 --batch-size 32
 python -m mini_llm.inference.generate --prompt "The history of" --max-new-tokens 200
 ```
 
+**Resultado**: 26.4M parámetros, entrenado 20.000 pasos (~3.3 épocas sobre 139M tokens)
+en ~1.6h en una RTX 4060, `val_loss` final ≈ 2.95 (perplejidad ≈ 19). Ejemplo de
+generación (`--prompt "In 1943, the"`):
+
+> In 1943, the US and Germany would not be part of the new German states .
+> = = = Final days = = =
+> Following the death of Obersturm in July 1943 , the government decided to transfer
+> the remainder of the Army and the military to the United States. [...]
+
+El modelo aprendió gramática, puntuación, y hasta convenciones propias del formato
+WikiText (como `@-@` para guiones) sin que se le indicara explícitamente.
+
 ## Fase B — ¿Por qué los Transformers fallan en razonamiento recursivo profundo?
 
 Un Transformer estándar entrenado para evaluar expresiones anidadas como
