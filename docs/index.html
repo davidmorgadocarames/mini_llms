@@ -27,7 +27,7 @@
     font-family: ui-monospace, SFMono-Regular, "Cascadia Code", "Fira Code", Consolas, "Courier New", monospace;
   }
   body {
-    padding: 2rem 1rem 4rem;
+    padding: 2rem 1rem 3rem;
     display: flex;
     justify-content: center;
   }
@@ -35,18 +35,15 @@
     width: 100%;
     max-width: 760px;
   }
-  .banner {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 0 .9rem;
-    font-size: clamp(0.85rem, 2.4vw, 1.05rem);
-    line-height: 1.5;
-    margin-bottom: 1.5rem;
-    white-space: pre;
+
+  .logo-img {
+    display: block;
+    width: 100%;
+    max-width: 320px;
+    height: auto;
+    margin: 0 0 1rem;
   }
-  .banner .logo { color: var(--brown); }
-  .banner .title { font-weight: 700; color: var(--text); }
-  .banner .muted { color: var(--muted); }
+  .model-info { color: var(--muted); font-size: .85rem; margin: 0 0 1.5rem; }
 
   p.lede {
     color: var(--muted);
@@ -55,11 +52,17 @@
   }
   p.lede a { color: var(--link); }
 
+  /* Fixed-height terminal panel: only the output area scrolls, the
+     input + token counter bar stays put at the bottom no matter how far
+     you scroll through the generated text -- same idea as Claude Code. */
   .terminal {
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: 10px;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: min(62vh, 560px);
   }
   .terminal-head {
     display: flex;
@@ -67,6 +70,7 @@
     gap: .4rem;
     padding: .6rem .8rem;
     border-bottom: 1px solid var(--border);
+    flex: 0 0 auto;
   }
   .dot { width: .6rem; height: .6rem; border-radius: 50%; background: #3a4145; }
   .terminal-title {
@@ -74,9 +78,12 @@
     color: var(--muted);
     font-size: .8rem;
   }
-  .terminal-body {
+
+  .terminal-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
     padding: 1rem;
-    min-height: 260px;
   }
 
   .chips {
@@ -98,11 +105,37 @@
   .chip:hover { border-color: var(--brown-dim); color: var(--brown); }
   .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
+  #output {
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.55;
+    font-size: .92rem;
+  }
+  #output .prompt-echo { color: var(--accent); }
+  #output .cursor {
+    display: inline-block;
+    width: .55em;
+    background: var(--text);
+    animation: blink 1s step-end infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* The sticky bottom bar: token counter + prompt input, always visible */
+  .terminal-footer {
+    flex: 0 0 auto;
+    border-top: 1px solid var(--border);
+    background: var(--panel);
+    padding: .6rem .9rem .8rem;
+  }
+  .token-counter {
+    color: var(--accent);
+    font-size: .78rem;
+    margin: 0 0 .5rem;
+  }
   .promptline {
     display: flex;
     gap: .5rem;
     align-items: center;
-    margin-bottom: .9rem;
   }
   .promptline .caret { color: var(--accent); font-weight: 700; }
   .promptline input {
@@ -117,22 +150,6 @@
   }
   .promptline input::placeholder { color: var(--muted); }
 
-  #output {
-    white-space: pre-wrap;
-    word-break: break-word;
-    line-height: 1.55;
-    font-size: .92rem;
-    min-height: 4.6em;
-  }
-  #output .prompt-echo { color: var(--accent); }
-  #output .cursor {
-    display: inline-block;
-    width: .55em;
-    background: var(--text);
-    animation: blink 1s step-end infinite;
-  }
-  @keyframes blink { 50% { opacity: 0; } }
-
   footer {
     margin-top: 1.5rem;
     color: var(--muted);
@@ -140,20 +157,13 @@
     line-height: 1.7;
   }
   footer a { color: var(--link); }
-
-  @media (max-width: 480px) {
-    .banner { font-size: .78rem; }
-  }
 </style>
 </head>
 <body>
 <main>
 
-  <div class="banner" aria-hidden="true">
-    <span class="logo"> ▛███▜ </span><span class="title">Coconut v0.1.0</span>
-    <span class="logo"> █●●●█ </span><span id="model-info" class="muted">26.4M params · step 20,000</span>
-    <span class="logo"> ▙███▟ </span><span class="muted">davidmorgadocarames.github.io/mini_llms</span>
-  </div>
+  <img class="logo-img" src="assets/logo.png" alt="Coconut">
+  <div class="model-info" id="model-info">26.4M params · step 20,000</div>
 
   <p class="lede">
     Un mini-LLM decoder-only (RoPE, RMSNorm, SwiGLU, Grouped Query Attention) entrenado
@@ -161,7 +171,8 @@
     reproduce con una animación de escritura los textos reales que generó el modelo
     entrenado — sin backend, sin GPU, sin instalar nada. Para generación libre con
     cualquier prompt, corre <code>python coconut.py</code> desde el
-    <a href="https://github.com/davidmorgadocarames/mini_llms">repositorio</a>.
+    <a href="https://github.com/davidmorgadocarames/mini_llms">repositorio</a>, o prueba la
+    <a href="https://github.com/davidmorgadocarames/mini_llms#demos-en-el-navegador">demo con inferencia real</a>.
   </p>
 
   <div class="terminal">
@@ -169,13 +180,18 @@
       <span class="dot"></span><span class="dot"></span><span class="dot"></span>
       <span class="terminal-title">coconut — bash</span>
     </div>
-    <div class="terminal-body">
+
+    <div class="terminal-scroll">
       <div class="chips" id="chips"></div>
+      <div id="output"></div>
+    </div>
+
+    <div class="terminal-footer">
+      <div class="token-counter" id="token-counter">&#9679; tokens generados: 0 (sesión: 0)</div>
       <div class="promptline">
         <span class="caret">&gt;</span>
         <input id="prompt-input" type="text" placeholder="elige un prompt de arriba, o escríbelo tal cual" autocomplete="off" spellcheck="false">
       </div>
-      <div id="output"></div>
     </div>
   </div>
 
@@ -189,11 +205,13 @@
 </main>
 
 <script>
-const EXAMPLES = {"n_params": 26354176, "step": 20000, "val_loss": 2.95, "examples": [{"prompt": "Once upon a time", "text": "Once upon a time when the American Revolution was underway . The U.S. government wanted to increase the number of people in the country to a large degree , and the government responded by securing the freedom to pay taxes to the country . \n <|endoftext|>  On 11 July 1947 , the U.S. sent a report to the United States that led to the creation of the United States . The paper was accepted by the U.S. by the U.S. Bureau of Land Management as its \" official contribution to the new nation \" , and that a second version , entitled The Roots of the Roots , was delivered by \" the U.S. Congress \" , a government he led , in September 1948 . \n <|endoftext|>  = = = Newspaper sources = = = \n <|endoftext|>  The New York Times said that the Newspaper"}, {"prompt": "The history of the", "text": "The history of the Bijelo Mission . The Bijelo Mission in the city was first named after the Dianji Mission in the 16th century . The first of these dates were to the early 17th century . The name Visigoth is to be derived from the berries of the Mission , the Gambeto Mission . \n <|endoftext|>  = = = Modern history = = = \n <|endoftext|>  The early history of the city has been the subject of several major academic books . From the mid @-@ 19th century onwards , the Visigothic tradition has been used to describe the city 's economic and military presence . The development of the city 's military and military bases led the development of the city 's military and military bases . In the second half of the 19th century , the city experienced a revival"}, {"prompt": "In 1943, the", "text": "In 1943, the United States . The Focke @-@ Wolf Trophy ( FRC ) for World War II , held in the United States and Canada in 1945 , was awarded the first American honors in 1950 , and was awarded the Silver Star in the 1950s . \n <|endoftext|>  = = = Continuing publications = = = \n <|endoftext|>  The American @-@ language magazine Alpha Elementary ( AMHS ) , published as a cover art which drew comparisons with American comic book art , was published in the United States in 1952 ; it was later published in the American version that year . It was widely distributed in the United States and Canada and New Zealand . The American @-@ language magazine Alpha Elementary was included in The New Yorker magazine in its October 1955 cover article in The Village Voice . In 1967 , the American @-@"}, {"prompt": "The film received", "text": "The film received mixed reviews ; the critic for The Sunday Times reported that the film was more of a \" memorable \" film about a \" great boy \" , with the Daily Mail commenting that it \" would be well @-@ written or just been forgettable if it was not , for a film . \" \n <|endoftext|>  = = = Accolades = = = \n <|endoftext|>  At the 83rd Academy Awards ceremony in 1993 , the film won two awards . The British Academy of Film and Television Arts won a Golden Globe for Best Role as well as four other awards . It won the International Film Critics Association Award for Best Film , and the Academy Award for Best Film , being awarded the award for Best Actor in a Motion Picture . \n <|endoftext|>  = = = Home media = = = \n <|endoftext|>  In the United Kingdom ,"}, {"prompt": "The album was praised by critics for its", "text": "The album was praised by critics for its lyrical content , stating that \" there is no good reason for some faults \" . In 2011 , The Sun was nominated at the 2011 Jazz Music Awards for Best Album , in a poll held at the 2010 Brit Awards . In 2011 , The Sun was nominated for Best Album . \n <|endoftext|>  = = Background = = \n <|endoftext|>  After leaving the band , David Mottola and her mother announced that they would be dating , the couple moved to Los Angeles in late 2011 . On September 12 , 2011 , the couple 's divorce was confirmed and they returned to Los Angeles to appear on their own show . On March 12 , 2011 , Mottola and the band appeared together and played with their new guitarist , Sammy Johns , and their new co @-@ stars Them . The pair recorded their first song , \" This Town \" on March 13 ,"}, {"prompt": "The war began when", "text": "The war began when a U.S. Army veteran of the war began to fight over him , a decision which he did not call off without his son . \n <|endoftext|>  = = = Invasion of the United States = = = \n <|endoftext|>  At the time of the victory , the U.S. Army was in the process of forming the U.S. Army and most of its units were stationed there . The U.S. Army was united at the end of World War II , and was the only U.S. Army unit to hold the war . Between January and May 1950 , part of the U.S. Army was led by Major General George C. Sturdee . Led by General George C. Friedman , the U.S. Army was tasked with helping U.S. troops out of the country . Major"}]};
+const EXAMPLES = {"n_params": 26354176, "step": 20000, "val_loss": 2.95, "examples": [{"prompt": "Once upon a time", "text": "Once upon a time when the American Revolution was underway . The U.S. government wanted to increase the number of people in the country to a large degree , and the government responded by securing the freedom to pay taxes to the country . \n <|endoftext|>  On 11 July 1947 , the U.S. sent a report to the United States that led to the creation of the United States . The paper was accepted by the U.S. by the U.S. Bureau of Land Management as its \" official contribution to the new nation \" , and that a second version , entitled The Roots of the Roots , was delivered by \" the U.S. Congress \" , a government he led , in September 1948 . \n <|endoftext|>  = = = Newspaper sources = = = \n <|endoftext|>  The New York Times said that the Newspaper", "tokens": 183}, {"prompt": "The history of the", "text": "The history of the Bijelo Mission . The Bijelo Mission in the city was first named after the Dianji Mission in the 16th century . The first of these dates were to the early 17th century . The name Visigoth is to be derived from the berries of the Mission , the Gambeto Mission . \n <|endoftext|>  = = = Modern history = = = \n <|endoftext|>  The early history of the city has been the subject of several major academic books . From the mid @-@ 19th century onwards , the Visigothic tradition has been used to describe the city 's economic and military presence . The development of the city 's military and military bases led the development of the city 's military and military bases . In the second half of the 19th century , the city experienced a revival", "tokens": 181}, {"prompt": "In 1943, the", "text": "In 1943, the United States . The Focke @-@ Wolf Trophy ( FRC ) for World War II , held in the United States and Canada in 1945 , was awarded the first American honors in 1950 , and was awarded the Silver Star in the 1950s . \n <|endoftext|>  = = = Continuing publications = = = \n <|endoftext|>  The American @-@ language magazine Alpha Elementary ( AMHS ) , published as a cover art which drew comparisons with American comic book art , was published in the United States in 1952 ; it was later published in the American version that year . It was widely distributed in the United States and Canada and New Zealand . The American @-@ language magazine Alpha Elementary was included in The New Yorker magazine in its October 1955 cover article in The Village Voice . In 1967 , the American @-@", "tokens": 182}, {"prompt": "The film received", "text": "The film received mixed reviews ; the critic for The Sunday Times reported that the film was more of a \" memorable \" film about a \" great boy \" , with the Daily Mail commenting that it \" would be well @-@ written or just been forgettable if it was not , for a film . \" \n <|endoftext|>  = = = Accolades = = = \n <|endoftext|>  At the 83rd Academy Awards ceremony in 1993 , the film won two awards . The British Academy of Film and Television Arts won a Golden Globe for Best Role as well as four other awards . It won the International Film Critics Association Award for Best Film , and the Academy Award for Best Film , being awarded the award for Best Actor in a Motion Picture . \n <|endoftext|>  = = = Home media = = = \n <|endoftext|>  In the United Kingdom ,", "tokens": 184}, {"prompt": "The album was praised by critics for its", "text": "The album was praised by critics for its lyrical content , stating that \" there is no good reason for some faults \" . In 2011 , The Sun was nominated at the 2011 Jazz Music Awards for Best Album , in a poll held at the 2010 Brit Awards . In 2011 , The Sun was nominated for Best Album . \n <|endoftext|>  = = Background = = \n <|endoftext|>  After leaving the band , David Mottola and her mother announced that they would be dating , the couple moved to Los Angeles in late 2011 . On September 12 , 2011 , the couple 's divorce was confirmed and they returned to Los Angeles to appear on their own show . On March 12 , 2011 , Mottola and the band appeared together and played with their new guitarist , Sammy Johns , and their new co @-@ stars Them . The pair recorded their first song , \" This Town \" on March 13 ,", "tokens": 182}, {"prompt": "The war began when", "text": "The war began when a U.S. Army veteran of the war began to fight over him , a decision which he did not call off without his son . \n <|endoftext|>  = = = Invasion of the United States = = = \n <|endoftext|>  At the time of the victory , the U.S. Army was in the process of forming the U.S. Army and most of its units were stationed there . The U.S. Army was united at the end of World War II , and was the only U.S. Army unit to hold the war . Between January and May 1950 , part of the U.S. Army was led by Major General George C. Sturdee . Led by General George C. Friedman , the U.S. Army was tasked with helping U.S. troops out of the country . Major", "tokens": 182}]};
 
 const chipsEl = document.getElementById("chips");
 const inputEl = document.getElementById("prompt-input");
 const outputEl = document.getElementById("output");
+const scrollEl = document.querySelector(".terminal-scroll");
+const tokenCounterEl = document.getElementById("token-counter");
 
 EXAMPLES.examples.forEach((ex) => {
   const btn = document.createElement("button");
@@ -208,18 +226,25 @@ EXAMPLES.examples.forEach((ex) => {
 });
 
 document.getElementById("model-info").textContent =
-  `${(EXAMPLES.n_params / 1e6).toFixed(1)}M params · step ${EXAMPLES.step.toLocaleString("en-US")}`;
+  `${(EXAMPLES.n_params / 1e6).toFixed(1)}M params · step ${EXAMPLES.step.toLocaleString("en-US")} · val_loss ${EXAMPLES.val_loss}`;
 
 let typing = null;
+let sessionTokens = 0;
+
+function renderTokenCounter(current) {
+  tokenCounterEl.textContent = `● tokens generados: ${current} (sesión: ${sessionTokens + current})`;
+}
+renderTokenCounter(0);
 
 function findExample(promptText) {
   const needle = promptText.trim().toLowerCase();
   return EXAMPLES.examples.find((ex) => ex.prompt.toLowerCase() === needle);
 }
 
-function typeText(promptText, bodyText) {
+function typeText(promptText, bodyText, totalTokens) {
   if (typing) clearInterval(typing);
   outputEl.innerHTML = "";
+  renderTokenCounter(0);
 
   const echo = document.createElement("span");
   echo.className = "prompt-echo";
@@ -231,17 +256,24 @@ function typeText(promptText, bodyText) {
   outputEl.appendChild(rest);
   const cursor = document.createElement("span");
   cursor.className = "cursor";
-  cursor.textContent = " ";
+  cursor.textContent = " ";
   outputEl.appendChild(cursor);
 
   let i = 0;
   typing = setInterval(() => {
     rest.textContent += bodyText[i];
     i += 1;
-    outputEl.scrollTop = outputEl.scrollHeight;
+    scrollEl.scrollTop = scrollEl.scrollHeight;
+    // Interpolate the live counter by characters revealed so far; it lands
+    // exactly on the real token count (computed with the actual BPE
+    // tokenizer) once typing finishes.
+    const current = totalTokens ? Math.round((i / bodyText.length) * totalTokens) : 0;
+    renderTokenCounter(current);
     if (i >= bodyText.length) {
       clearInterval(typing);
       typing = null;
+      renderTokenCounter(totalTokens || 0);
+      sessionTokens += totalTokens || 0;
     }
   }, 14);
 }
@@ -249,12 +281,13 @@ function typeText(promptText, bodyText) {
 function runPrompt(promptText) {
   const example = findExample(promptText);
   if (example) {
-    typeText(example.prompt, example.text.slice(example.prompt.length));
+    typeText(example.prompt, example.text.slice(example.prompt.length), example.tokens);
   } else {
     typeText(
       promptText,
       "  [demo estática: este prompt no está pre-generado. Elige uno de los botones de " +
-      "arriba, o corre `python coconut.py` localmente para generación libre con el modelo real.]"
+      "arriba, o corre `python coconut.py` localmente para generación libre con el modelo real.]",
+      0
     );
   }
 }
