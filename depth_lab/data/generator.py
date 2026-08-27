@@ -29,19 +29,20 @@ class Example:
     depth: int
 
 
-def _gen_bool(depth: int, rng: random.Random) -> tuple[str, bool]:
+def _gen_bool(depth: int, rng: random.Random, max_shallow: int | None = None) -> tuple[str, bool]:
     if depth == 0:
         v = rng.choice([True, False])
         return str(v), v
 
     if rng.random() < UNARY_NOT_PROB:
-        sub_expr, sub_val = _gen_bool(depth - 1, rng)
+        sub_expr, sub_val = _gen_bool(depth - 1, rng, max_shallow)
         return f"not ({sub_expr})", not sub_val
 
     op = rng.choice(BOOL_BINARY_OPS)
-    other_depth = rng.randint(0, depth - 1)
-    deep_expr, deep_val = _gen_bool(depth - 1, rng)
-    other_expr, other_val = _gen_bool(other_depth, rng)
+    shallow_ceiling = depth - 1 if max_shallow is None else min(max_shallow, depth - 1)
+    other_depth = rng.randint(0, shallow_ceiling)
+    deep_expr, deep_val = _gen_bool(depth - 1, rng, max_shallow)
+    other_expr, other_val = _gen_bool(other_depth, rng, max_shallow)
 
     if rng.choice([True, False]):
         left_expr, left_val, right_expr, right_val = deep_expr, deep_val, other_expr, other_val
@@ -52,15 +53,16 @@ def _gen_bool(depth: int, rng: random.Random) -> tuple[str, bool]:
     return f"({left_expr} {op} {right_expr})", value
 
 
-def _gen_arith(depth: int, rng: random.Random) -> tuple[str, int]:
+def _gen_arith(depth: int, rng: random.Random, max_shallow: int | None = None) -> tuple[str, int]:
     if depth == 0:
         v = rng.randint(0, 999)
         return str(v), v
 
     op = rng.choice(ARITH_BINARY_OPS)
-    other_depth = rng.randint(0, depth - 1)
-    deep_expr, deep_val = _gen_arith(depth - 1, rng)
-    other_expr, other_val = _gen_arith(other_depth, rng)
+    shallow_ceiling = depth - 1 if max_shallow is None else min(max_shallow, depth - 1)
+    other_depth = rng.randint(0, shallow_ceiling)
+    deep_expr, deep_val = _gen_arith(depth - 1, rng, max_shallow)
+    other_expr, other_val = _gen_arith(other_depth, rng, max_shallow)
 
     if rng.choice([True, False]):
         left_expr, left_val, right_expr, right_val = deep_expr, deep_val, other_expr, other_val
@@ -72,20 +74,27 @@ def _gen_arith(depth: int, rng: random.Random) -> tuple[str, int]:
     return f"({left_expr} {op} {right_expr})", value
 
 
-def generate(domain: str, depth: int, rng: random.Random | None = None) -> Example:
+def generate(domain: str, depth: int, rng: random.Random | None = None,
+             max_shallow: int | None = None) -> Example:
     """domain: 'bool' or 'arith'. depth: exact longest-path depth of the tree
-    (depth=0 yields a bare literal, no operators)."""
+    (depth=0 yields a bare literal, no operators). max_shallow caps how deep
+    the non-critical-path branch can go at each split (default: unbounded, so
+    it can be as deep as depth-1) -- without a cap, expression *length* grows
+    much faster than depth (roughly depth^2), which confounds depth
+    generalization with length generalization when testing at high depths.
+    Pass a small max_shallow (e.g. 2) to keep length growth close to linear
+    in depth, isolating depth as the varying factor."""
     rng = rng or random.Random()
     if domain == "bool":
-        expr, value = _gen_bool(depth, rng)
+        expr, value = _gen_bool(depth, rng, max_shallow)
     elif domain == "arith":
-        expr, value = _gen_arith(depth, rng)
+        expr, value = _gen_arith(depth, rng, max_shallow)
     else:
         raise ValueError(f"unknown domain: {domain!r}")
     return Example(expr=expr, value=value, depth=depth)
 
 
 def generate_dataset(domain: str, depths: range | list[int], n_per_depth: int,
-                      seed: int = 0) -> list[Example]:
+                      seed: int = 0, max_shallow: int | None = None) -> list[Example]:
     rng = random.Random(seed)
-    return [generate(domain, d, rng) for d in depths for _ in range(n_per_depth)]
+    return [generate(domain, d, rng, max_shallow) for d in depths for _ in range(n_per_depth)]

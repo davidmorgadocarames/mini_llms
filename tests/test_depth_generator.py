@@ -68,3 +68,37 @@ def test_generate_dataset_is_deterministic_given_seed():
     b = generate_dataset("arith", depths=range(0, 5), n_per_depth=3, seed=123)
     assert [ex.expr for ex in a] == [ex.expr for ex in b]
     assert [ex.value for ex in a] == [ex.value for ex in b]
+
+
+@pytest.mark.parametrize("domain", ["bool", "arith"])
+def test_max_shallow_still_produces_exact_requested_depth(domain):
+    """Capping the non-critical branch must not affect the guaranteed depth
+    of the critical path -- only how bushy the tree is."""
+    rng = random.Random(5)
+    for _ in range(20):
+        example = generate(domain, 10, rng, max_shallow=2)
+        assert max_paren_depth(example.expr) == 10
+
+
+@pytest.mark.parametrize("domain", ["bool", "arith"])
+def test_max_shallow_keeps_length_growth_close_to_linear(domain):
+    """Without a cap, expression length grows much faster than depth
+    (roughly quadratic), which confounds depth generalization with length
+    generalization when evaluating at high out-of-distribution depths."""
+    rng = random.Random(9)
+
+    def avg_len(depth: int) -> float:
+        lens = [len(generate(domain, depth, rng, max_shallow=2).expr) for _ in range(30)]
+        return sum(lens) / len(lens)
+
+    len_at_5 = avg_len(5)
+    len_at_12 = avg_len(12)
+    # depth grew 2.4x (5 -> 12); length should grow well under that squared
+    assert len_at_12 / len_at_5 < 4.0
+
+
+def test_max_shallow_value_still_matches_python_eval():
+    rng = random.Random(13)
+    for _ in range(20):
+        example = generate("bool", 8, rng, max_shallow=2)
+        assert eval(example.expr) == example.value  # noqa: S307
