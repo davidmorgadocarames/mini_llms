@@ -5,9 +5,9 @@ davidmorgado/coconut-mini-llm at startup, then cached).
 This is the "real inference in the browser" counterpart to the static replay
 demo at docs/index.html -- same visual language and layout (fixed-height
 scrolling output panel, token counter + prompt always visible below it,
-never needing to scroll past generated text to reach the input -- mirrors
-Claude Code's input bar), but the model actually runs here instead of
-replaying a pre-recorded transcript.
+green prompt echo, pill-shaped wrapping chips, Enter-to-submit with no
+separate button), but the model actually runs here instead of replaying a
+pre-recorded transcript.
 """
 
 import base64
@@ -25,10 +25,12 @@ HF_REPO = "davidmorgado/coconut-mini-llm"
 LOGO_PATH = Path(__file__).resolve().parent / "coconut_tui" / "assets" / "logo.png"
 
 EXAMPLE_PROMPTS = [
+    "Once upon a time",
     "The history of the",
     "In 1943, the",
     "The film received",
     "The album was praised by critics for its",
+    "The war began when",
 ]
 
 st.set_page_config(page_title="Coconut mini-LLM", page_icon="🥥")
@@ -45,11 +47,8 @@ html, body, [class*="css"], .stApp, .stMarkdown, .stButton button,
 [data-testid="stSidebar"] { background-color: #12171a; border-right: 1px solid #23292c; }
 
 /* Hide Streamlit's own chrome (visible to every visitor, not just the app
-   owner) so the page reads as our design instead of "a Streamlit app":
-   the light-colored top header/toolbar and the "Made with Streamlit"
-   footer badge. The owner-only floating pill (GitHub/Manage app icons) is
-   Streamlit Cloud UI shown only when you're logged in as the deployer --
-   regular visitors never see it, so it's not part of this. */
+   owner): the light-colored top header/toolbar and the "Made with
+   Streamlit" footer badge. */
 [data-testid="stHeader"] { background: #0b0e0f; }
 [data-testid="stToolbar"] { display: none; }
 [data-testid="stDecoration"] { display: none; }
@@ -71,8 +70,6 @@ footer { visibility: hidden; }
 }
 .coconut-info strong { color: #c98a4b; }
 
-/* Window-title-style bar sitting flush above the bordered container below,
-   the same visual pattern as the terminal-head in docs/index.html. */
 .terminal-head-bar {
     display: flex; align-items: center; gap: .35rem;
     background: #12171a; border: 1px solid #23292c; border-bottom: none;
@@ -83,9 +80,6 @@ footer { visibility: hidden; }
     width: .55rem; height: .55rem; border-radius: 50%; background: #3a4145;
 }
 
-/* The fixed-height scrolling panel is st.container(height=..., border=True);
-   this restyles Streamlit's own border wrapper to match our dark theme and
-   sit flush under the title bar above. */
 div[data-testid="stVerticalBlockBorderWrapper"] {
     background: #12171a !important;
     border: 1px solid #23292c !important;
@@ -93,25 +87,52 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
     border-radius: 0 0 10px 10px !important;
 }
 
+/* Chip row: Streamlit's default vertical block stacks children top-to-
+   bottom and stretches them full-width. Force it into a wrapping flex
+   row of auto-sized, pill-shaped buttons instead, to match the chips in
+   docs/index.html. */
+.st-key-chip-row div[data-testid="stVerticalBlock"] {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    gap: .5rem !important;
+    align-items: flex-start !important;
+}
+.st-key-chip-row div[data-testid="stVerticalBlock"] > div,
+.st-key-chip-row div[data-testid="element-container"],
+.st-key-chip-row div[data-testid="stButton"] {
+    width: auto !important;
+}
 div.stButton > button {
     background: #1a2124; color: #d8dee2; border: 1px solid #23292c;
-    border-radius: 6px; font-family: inherit;
+    border-radius: 999px; font-family: inherit; white-space: nowrap;
 }
 div.stButton > button:hover { border-color: #8a6238; color: #c98a4b; }
-div.stButton > button[kind="primary"] { background: #1f3d2b; border-color: #6fcf97; color: #6fcf97; }
 
-.stTextInput input {
-    background: #12171a !important; color: #d8dee2 !important;
-    border: 1px solid #23292c !important; font-family: inherit !important;
+#output-frame {
+    white-space: pre-wrap; word-break: break-word;
+    line-height: 1.55; font-size: 0.92rem; color: #d8dee2;
+    margin: 0 0 1rem; font-family: inherit;
 }
+#output-frame .prompt-echo { color: #6fcf97; }
 
 .token-counter {
     color: #6fcf97; font-size: 0.82rem; margin: 0.75rem 0 0.4rem 0;
 }
-pre.coconut-output {
-    white-space: pre-wrap; word-break: break-word;
-    line-height: 1.55; font-size: 0.92rem; color: #d8dee2;
-    margin: 0; font-family: inherit;
+
+/* Prompt input styled like the promptline in docs/index.html: no visible
+   box, just a caret, blending into the footer instead of looking like a
+   separate form field. */
+.stTextInput input {
+    background: transparent !important; color: #d8dee2 !important;
+    border: none !important; border-bottom: 1px solid #23292c !important;
+    border-radius: 0 !important; font-family: inherit !important;
+    padding-left: 1.4rem !important;
+}
+.stTextInput { position: relative; }
+.stTextInput::before {
+    content: ">"; position: absolute; left: .1rem; top: 2.1rem;
+    color: #6fcf97; font-weight: 700; z-index: 1;
 }
 </style>
 """
@@ -160,12 +181,26 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("[Codigo en GitHub](https://github.com/davidmorgadocarames/mini_llms)")
 
-if "total_tokens" not in st.session_state:
-    st.session_state.total_tokens = 0
-if "last_output" not in st.session_state:
-    st.session_state.last_output = ""
-if "prompt" not in st.session_state:
-    st.session_state.prompt = ""
+for key, default in (
+    ("total_tokens", 0),
+    ("last_output_prompt", ""),
+    ("last_output_body", ""),
+    ("last_processed", None),
+    ("prompt", ""),
+):
+    if key not in st.session_state:
+        st.session_state[key] = default
+
+
+def render_output(prompt_text: str, body_text: str, cursor: bool = False) -> str:
+    if not prompt_text and not body_text:
+        return '<pre id="output-frame"></pre>'
+    tail = "&#9608;" if cursor else ""
+    return (
+        '<pre id="output-frame"><span class="prompt-echo">'
+        f"{html.escape(prompt_text)}</span> {html.escape(body_text)}{tail}</pre>"
+    )
+
 
 # --- fixed-height scrolling panel: example chips + generated output ---
 st.markdown(
@@ -173,19 +208,24 @@ st.markdown(
     '<span class="dot"></span>&nbsp;coconut &mdash; streamlit</div>',
     unsafe_allow_html=True,
 )
+
+clicked_prompt = None
 with st.container(height=380, border=True):
-    cols = st.columns(len(EXAMPLE_PROMPTS))
-    for col, example in zip(cols, EXAMPLE_PROMPTS):
-        if col.button(example, use_container_width=True):
-            st.session_state.prompt = example
+    with st.container(key="chip-row"):
+        for example in EXAMPLE_PROMPTS:
+            if st.button(example, key=f"chip-{example}"):
+                clicked_prompt = example
     output_box = st.empty()
     output_box.markdown(
-        f'<pre class="coconut-output">{html.escape(st.session_state.last_output)}</pre>',
+        render_output(st.session_state.last_output_prompt, st.session_state.last_output_body),
         unsafe_allow_html=True,
     )
 
-# --- always-visible footer: token counter + prompt input, never needs
-#     scrolling past the generated text to reach it (mirrors Claude Code) ---
+if clicked_prompt:
+    st.session_state.prompt = clicked_prompt
+
+# --- always-visible footer: token counter + prompt input, no button --
+# Enter (or losing focus) submits, same as the promptline in docs/index.html.
 token_counter = st.empty()
 
 
@@ -204,16 +244,16 @@ prompt = st.text_input(
     "Prompt", key="prompt", placeholder="elige un prompt de arriba, o escribelo tal cual", label_visibility="collapsed"
 )
 
-if st.button("Generar", type="primary") and prompt.strip():
-    ids = tokenizer.encode(prompt)
+to_generate = clicked_prompt or (prompt if prompt.strip() and prompt != st.session_state.last_processed else None)
+
+if to_generate:
+    ids = tokenizer.encode(to_generate)
     idx = torch.tensor([ids], dtype=torch.long, device=device)
+    prompt_len = len(tokenizer.decode(ids))
     text_so_far = tokenizer.decode(ids)
     n_tokens = 0
 
-    output_box.markdown(
-        f'<pre class="coconut-output">{html.escape(text_so_far)}&#9608;</pre>',
-        unsafe_allow_html=True,
-    )
+    output_box.markdown(render_output(to_generate, "", cursor=True), unsafe_allow_html=True)
 
     for out_idx in model.generate_stream(
         idx, max_new_tokens=max_new_tokens, temperature=temperature, top_k=top_k
@@ -221,12 +261,13 @@ if st.button("Generar", type="primary") and prompt.strip():
         text_so_far = tokenizer.decode(out_idx[0].tolist())
         n_tokens += 1
         output_box.markdown(
-            f'<pre class="coconut-output">{html.escape(text_so_far)}&#9608;</pre>',
-            unsafe_allow_html=True,
+            render_output(to_generate, text_so_far[prompt_len:], cursor=True), unsafe_allow_html=True
         )
         render_token_counter(n_tokens)
 
-    output_box.markdown(f'<pre class="coconut-output">{html.escape(text_so_far)}</pre>', unsafe_allow_html=True)
-    st.session_state.last_output = text_so_far
+    output_box.markdown(render_output(to_generate, text_so_far[prompt_len:]), unsafe_allow_html=True)
+    st.session_state.last_output_prompt = to_generate
+    st.session_state.last_output_body = text_so_far[prompt_len:]
     st.session_state.total_tokens += n_tokens
+    st.session_state.last_processed = to_generate
     render_token_counter()
