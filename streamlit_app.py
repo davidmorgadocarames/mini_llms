@@ -44,6 +44,19 @@ html, body, [class*="css"], .stApp, .stMarkdown, .stButton button,
 .stApp, .stApp p, .stApp label, .stApp span { color: #d8dee2; }
 [data-testid="stSidebar"] { background-color: #12171a; border-right: 1px solid #23292c; }
 
+/* Hide Streamlit's own chrome (visible to every visitor, not just the app
+   owner) so the page reads as our design instead of "a Streamlit app":
+   the light-colored top header/toolbar and the "Made with Streamlit"
+   footer badge. The owner-only floating pill (GitHub/Manage app icons) is
+   Streamlit Cloud UI shown only when you're logged in as the deployer --
+   regular visitors never see it, so it's not part of this. */
+[data-testid="stHeader"] { background: #0b0e0f; }
+[data-testid="stToolbar"] { display: none; }
+[data-testid="stDecoration"] { display: none; }
+footer { visibility: hidden; }
+.stApp > header { background: transparent; }
+.block-container { padding-top: 2rem; }
+
 .coconut-banner-img {
     max-width: 320px;
     width: 100%;
