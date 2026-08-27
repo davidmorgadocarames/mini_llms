@@ -54,3 +54,39 @@ class ExprDataset(Dataset):
         ex = self.examples[idx]
         prefix = f"{ex['expr']} => "
         return [self.tokenizer.bos_id, *self.tokenizer.encode(prefix)]
+
+
+class Seq2SeqDataset(Dataset):
+    """Encoder/decoder counterpart of ExprDataset: the encoder side gets the
+    raw expression (no bos/eos needed -- it isn't autoregressive), and the
+    decoder side gets "<bos><value><eos>" so training can teach next-token
+    prediction of just the value, cross-attending to the encoded expression.
+    Both sides are padded to a fixed length so batches stack into plain
+    tensors; pad_id is excluded from the loss via ignore_index, same as
+    ExprDataset."""
+
+    def __init__(self, examples: list[dict], tokenizer: CharTokenizer, src_block_size: int, tgt_block_size: int):
+        self.examples = examples
+        self.tokenizer = tokenizer
+        self.src_block_size = src_block_size
+        self.tgt_block_size = tgt_block_size
+
+    def __len__(self) -> int:
+        return len(self.examples)
+
+    def _pad(self, ids: list[int], length: int, what: str) -> list[int]:
+        if len(ids) > length:
+            raise ValueError(f"{what} needs {len(ids)} tokens, exceeds block size {length}")
+        return ids + [self.tokenizer.pad_id] * (length - len(ids))
+
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        ex = self.examples[idx]
+        src_ids = self._pad(self.tokenizer.encode(ex["expr"]), self.src_block_size, "src")
+        tgt_ids = self._pad(
+            [self.tokenizer.bos_id, *self.tokenizer.encode(render_value(ex["value"])), self.tokenizer.eos_id],
+            self.tgt_block_size + 1,
+            "tgt",
+        )
+        src = torch.tensor(src_ids, dtype=torch.long)
+        tgt = torch.tensor(tgt_ids, dtype=torch.long)
+        return src, tgt[:-1], tgt[1:]
