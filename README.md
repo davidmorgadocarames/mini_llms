@@ -5,7 +5,21 @@ Mini-LLM construido desde cero, en dos fases, como proyecto de portfolio.
 ## Fase A — Mini-LLM de propósito general
 
 Un modelo de lenguaje decoder-only con arquitectura moderna (RoPE, RMSNorm, SwiGLU,
-Grouped Query Attention), entrenado sobre texto real. *(En construcción.)*
+Grouped Query Attention), entrenado sobre texto real (WikiText-103). ~26M parámetros,
+tokenizer BPE propio.
+
+```bash
+pip install -r requirements.txt
+
+# 1. Descargar WikiText-103, entrenar el tokenizer BPE y binarizar los tokens
+python -m mini_llm.data.prepare_data --dataset wikitext-103-raw-v1 --vocab-size 8192
+
+# 2. Entrenar
+python -m mini_llm.train.train --max-steps 20000 --batch-size 32
+
+# 3. Generar texto
+python -m mini_llm.inference.generate --prompt "The history of" --max-new-tokens 200
+```
 
 ## Fase B — ¿Por qué los Transformers fallan en razonamiento recursivo profundo?
 
