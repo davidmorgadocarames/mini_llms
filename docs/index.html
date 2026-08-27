@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coconut — mini-LLM demo</title>
+<meta name="description" content="Demo interactiva de Coconut, un mini-LLM de 26M parámetros construido desde cero (RoPE, RMSNorm, SwiGLU, Grouped Query Attention).">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A5%A5%3C/text%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #0b0e0f;
+    --panel: #12171a;
+    --border: #23292c;
+    --text: #d8dee2;
+    --muted: #7b8790;
+    --brown: #c98a4b;
+    --brown-dim: #8a6238;
+    --accent: #6fcf97;
+    --link: #79b8ff;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    min-height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: ui-monospace, SFMono-Regular, "Cascadia Code", "Fira Code", Consolas, "Courier New", monospace;
+  }
+  body {
+    padding: 2rem 1rem 4rem;
+    display: flex;
+    justify-content: center;
+  }
+  main {
+    width: 100%;
+    max-width: 760px;
+  }
+  .banner {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0 .9rem;
+    font-size: clamp(0.85rem, 2.4vw, 1.05rem);
+    line-height: 1.5;
+    margin-bottom: 1.5rem;
+    white-space: pre;
+  }
+  .banner .logo { color: var(--brown); }
+  .banner .title { font-weight: 700; color: var(--text); }
+  .banner .muted { color: var(--muted); }
+
+  p.lede {
+    color: var(--muted);
+    line-height: 1.6;
+    margin: 0 0 1.75rem;
+  }
+  p.lede a { color: var(--link); }
+
+  .terminal {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .terminal-head {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .6rem .8rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .dot { width: .6rem; height: .6rem; border-radius: 50%; background: #3a4145; }
+  .terminal-title {
+    margin-left: .5rem;
+    color: var(--muted);
+    font-size: .8rem;
+  }
+  .terminal-body {
+    padding: 1rem;
+    min-height: 260px;
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    margin-bottom: 1rem;
+  }
+  .chip {
+    background: #1a2124;
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 999px;
+    padding: .35rem .8rem;
+    font: inherit;
+    font-size: .82rem;
+    cursor: pointer;
+  }
+  .chip:hover { border-color: var(--brown-dim); color: var(--brown); }
+  .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .promptline {
+    display: flex;
+    gap: .5rem;
+    align-items: center;
+    margin-bottom: .9rem;
+  }
+  .promptline .caret { color: var(--accent); font-weight: 700; }
+  .promptline input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font: inherit;
+    font-size: .95rem;
+    outline: none;
+    min-width: 0;
+  }
+  .promptline input::placeholder { color: var(--muted); }
+
+  #output {
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.55;
+    font-size: .92rem;
+    min-height: 4.6em;
+  }
+  #output .prompt-echo { color: var(--accent); }
+  #output .cursor {
+    display: inline-block;
+    width: .55em;
+    background: var(--text);
+    animation: blink 1s step-end infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  footer {
+    margin-top: 1.5rem;
+    color: var(--muted);
+    font-size: .8rem;
+    line-height: 1.7;
+  }
+  footer a { color: var(--link); }
+
+  @media (max-width: 480px) {
+    .banner { font-size: .78rem; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+  <div class="banner" aria-hidden="true">
+    <span class="logo"> ▛███▜ </span><span class="title">Coconut v0.1.0</span>
+    <span class="logo"> █●●●█ </span><span id="model-info" class="muted">26.4M params · step 20,000</span>
+    <span class="logo"> ▙███▟ </span><span class="muted">davidmorgadocarames.github.io/mini_llms</span>
+  </div>
+
+  <p class="lede">
+    Un mini-LLM decoder-only (RoPE, RMSNorm, SwiGLU, Grouped Query Attention) entrenado
+    desde cero sobre WikiText-103. Esta página es una <strong>demo estática</strong>:
+    reproduce con una animación de escritura los textos reales que generó el modelo
+    entrenado — sin backend, sin GPU, sin instalar nada. Para generación libre con
+    cualquier prompt, corre <code>python coconut.py</code> desde el
+    <a href="https://github.com/davidmorgadocarames/mini_llms">repositorio</a>.
+  </p>
+
+  <div class="terminal">
+    <div class="terminal-head">
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      <span class="terminal-title">coconut — bash</span>
+    </div>
+    <div class="terminal-body">
+      <div class="chips" id="chips"></div>
+      <div class="promptline">
+        <span class="caret">&gt;</span>
+        <input id="prompt-input" type="text" placeholder="elige un prompt de arriba, o escríbelo tal cual" autocomplete="off" spellcheck="false">
+      </div>
+      <div id="output"></div>
+    </div>
+  </div>
+
+  <footer>
+    Arquitectura y entrenamiento explicados en el
+    <a href="https://github.com/davidmorgadocarames/mini_llms">README del repo</a>.
+    Este mismo proyecto incluye una Fase B que reproduce y extiende un paper de AAAI 2026
+    sobre por qué los Transformers fallan en razonamiento recursivo profundo.
+  </footer>
+
+</main>
+
+<script>
+const EXAMPLES = {"n_params": 26354176, "step": 20000, "val_loss": 2.95, "examples": [{"prompt": "Once upon a time", "text": "Once upon a time when the American Revolution was underway . The U.S. government wanted to increase the number of people in the country to a large degree , and the government responded by securing the freedom to pay taxes to the country . \n <|endoftext|>  On 11 July 1947 , the U.S. sent a report to the United States that led to the creation of the United States . The paper was accepted by the U.S. by the U.S. Bureau of Land Management as its \" official contribution to the new nation \" , and that a second version , entitled The Roots of the Roots , was delivered by \" the U.S. Congress \" , a government he led , in September 1948 . \n <|endoftext|>  = = = Newspaper sources = = = \n <|endoftext|>  The New York Times said that the Newspaper"}, {"prompt": "The history of the", "text": "The history of the Bijelo Mission . The Bijelo Mission in the city was first named after the Dianji Mission in the 16th century . The first of these dates were to the early 17th century . The name Visigoth is to be derived from the berries of the Mission , the Gambeto Mission . \n <|endoftext|>  = = = Modern history = = = \n <|endoftext|>  The early history of the city has been the subject of several major academic books . From the mid @-@ 19th century onwards , the Visigothic tradition has been used to describe the city 's economic and military presence . The development of the city 's military and military bases led the development of the city 's military and military bases . In the second half of the 19th century , the city experienced a revival"}, {"prompt": "In 1943, the", "text": "In 1943, the United States . The Focke @-@ Wolf Trophy ( FRC ) for World War II , held in the United States and Canada in 1945 , was awarded the first American honors in 1950 , and was awarded the Silver Star in the 1950s . \n <|endoftext|>  = = = Continuing publications = = = \n <|endoftext|>  The American @-@ language magazine Alpha Elementary ( AMHS ) , published as a cover art which drew comparisons with American comic book art , was published in the United States in 1952 ; it was later published in the American version that year . It was widely distributed in the United States and Canada and New Zealand . The American @-@ language magazine Alpha Elementary was included in The New Yorker magazine in its October 1955 cover article in The Village Voice . In 1967 , the American @-@"}, {"prompt": "The film received", "text": "The film received mixed reviews ; the critic for The Sunday Times reported that the film was more of a \" memorable \" film about a \" great boy \" , with the Daily Mail commenting that it \" would be well @-@ written or just been forgettable if it was not , for a film . \" \n <|endoftext|>  = = = Accolades = = = \n <|endoftext|>  At the 83rd Academy Awards ceremony in 1993 , the film won two awards . The British Academy of Film and Television Arts won a Golden Globe for Best Role as well as four other awards . It won the International Film Critics Association Award for Best Film , and the Academy Award for Best Film , being awarded the award for Best Actor in a Motion Picture . \n <|endoftext|>  = = = Home media = = = \n <|endoftext|>  In the United Kingdom ,"}, {"prompt": "The album was praised by critics for its", "text": "The album was praised by critics for its lyrical content , stating that \" there is no good reason for some faults \" . In 2011 , The Sun was nominated at the 2011 Jazz Music Awards for Best Album , in a poll held at the 2010 Brit Awards . In 2011 , The Sun was nominated for Best Album . \n <|endoftext|>  = = Background = = \n <|endoftext|>  After leaving the band , David Mottola and her mother announced that they would be dating , the couple moved to Los Angeles in late 2011 . On September 12 , 2011 , the couple 's divorce was confirmed and they returned to Los Angeles to appear on their own show . On March 12 , 2011 , Mottola and the band appeared together and played with their new guitarist , Sammy Johns , and their new co @-@ stars Them . The pair recorded their first song , \" This Town \" on March 13 ,"}, {"prompt": "The war began when", "text": "The war began when a U.S. Army veteran of the war began to fight over him , a decision which he did not call off without his son . \n <|endoftext|>  = = = Invasion of the United States = = = \n <|endoftext|>  At the time of the victory , the U.S. Army was in the process of forming the U.S. Army and most of its units were stationed there . The U.S. Army was united at the end of World War II , and was the only U.S. Army unit to hold the war . Between January and May 1950 , part of the U.S. Army was led by Major General George C. Sturdee . Led by General George C. Friedman , the U.S. Army was tasked with helping U.S. troops out of the country . Major"}]};
+
+const chipsEl = document.getElementById("chips");
+const inputEl = document.getElementById("prompt-input");
+const outputEl = document.getElementById("output");
+
+EXAMPLES.examples.forEach((ex) => {
+  const btn = document.createElement("button");
+  btn.className = "chip";
+  btn.type = "button";
+  btn.textContent = ex.prompt;
+  btn.addEventListener("click", () => {
+    inputEl.value = ex.prompt;
+    runPrompt(ex.prompt);
+  });
+  chipsEl.appendChild(btn);
+});
+
+document.getElementById("model-info").textContent =
+  `${(EXAMPLES.n_params / 1e6).toFixed(1)}M params · step ${EXAMPLES.step.toLocaleString("en-US")}`;
+
+let typing = null;
+
+function findExample(promptText) {
+  const needle = promptText.trim().toLowerCase();
+  return EXAMPLES.examples.find((ex) => ex.prompt.toLowerCase() === needle);
+}
+
+function typeText(promptText, bodyText) {
+  if (typing) clearInterval(typing);
+  outputEl.innerHTML = "";
+
+  const echo = document.createElement("span");
+  echo.className = "prompt-echo";
+  echo.textContent = promptText;
+  outputEl.appendChild(echo);
+  outputEl.appendChild(document.createTextNode(" "));
+
+  const rest = document.createElement("span");
+  outputEl.appendChild(rest);
+  const cursor = document.createElement("span");
+  cursor.className = "cursor";
+  cursor.textContent = " ";
+  outputEl.appendChild(cursor);
+
+  let i = 0;
+  typing = setInterval(() => {
+    rest.textContent += bodyText[i];
+    i += 1;
+    outputEl.scrollTop = outputEl.scrollHeight;
+    if (i >= bodyText.length) {
+      clearInterval(typing);
+      typing = null;
+    }
+  }, 14);
+}
+
+function runPrompt(promptText) {
+  const example = findExample(promptText);
+  if (example) {
+    typeText(example.prompt, example.text.slice(example.prompt.length));
+  } else {
+    typeText(
+      promptText,
+      "  [demo estática: este prompt no está pre-generado. Elige uno de los botones de " +
+      "arriba, o corre `python coconut.py` localmente para generación libre con el modelo real.]"
+    );
+  }
+}
+
+inputEl.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && inputEl.value.trim()) {
+    runPrompt(inputEl.value);
+  }
+});
+
+runPrompt(EXAMPLES.examples[0].prompt);
+</script>
+</body>
+</html>
