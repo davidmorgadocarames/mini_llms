@@ -9,3 +9,5 @@ pytest-asyncio
 textual
 rich
 pydantic
+streamlit
+huggingface_hub

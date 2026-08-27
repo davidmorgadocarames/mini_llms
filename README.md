@@ -60,7 +60,15 @@ Textual y se testean con pytest normal, sin necesitar una terminal real. El prov
 del LLM (`coconut_tui/providers/`) es una interfaz intercambiable — cambiar de modelo
 es implementarla de nuevo, sin tocar el resto.
 
-🌐 **[Prueba la demo interactiva en el navegador](https://davidmorgadocarames.github.io/mini_llms/)** (sin instalar nada).
+### Demos en el navegador
+
+- 🌐 **[Réplica estática (GitHub Pages)](https://davidmorgadocarames.github.io/mini_llms/)**
+  — reproduce con animación de escritura generaciones reales pregrabadas del modelo.
+  No hay servidor detrás, así que solo funciona con los prompts de ejemplo.
+- 🚀 **Inferencia real en vivo (Streamlit Community Cloud)** — el modelo corriendo de
+  verdad en un servidor, cargado desde el checkpoint publicado en
+  [HuggingFace](https://huggingface.co/davidmorgado/coconut-mini-llm). Código en
+  [`streamlit_app.py`](streamlit_app.py). *(Enlace pendiente de desplegar — ver más abajo.)*
 
 ## Fase B — ¿Por qué los Transformers fallan en razonamiento recursivo profundo?
 
