@@ -121,18 +121,18 @@ div.stButton > button:hover { border-color: #8a6238; color: #c98a4b; }
 }
 
 /* Prompt input styled like the promptline in docs/index.html: no visible
-   box, just a caret, blending into the footer instead of looking like a
-   separate form field. */
+   box, blending into the footer instead of looking like a separate form
+   field. The literal ">" caret is a column to its left (see layout below)
+   rather than a CSS-positioned pseudo-element -- absolute positioning with
+   a guessed pixel offset didn't line up correctly on a real device. */
 .stTextInput input {
     background: transparent !important; color: #d8dee2 !important;
     border: none !important; border-bottom: 1px solid #23292c !important;
     border-radius: 0 !important; font-family: inherit !important;
-    padding-left: 1.4rem !important;
 }
-.stTextInput { position: relative; }
-.stTextInput::before {
-    content: ">"; position: absolute; left: .1rem; top: 2.1rem;
-    color: #6fcf97; font-weight: 700; z-index: 1;
+.prompt-caret {
+    color: #6fcf97; font-weight: 700; font-size: 1.1rem;
+    display: flex; align-items: center; height: 2.6rem;
 }
 </style>
 """
@@ -201,7 +201,7 @@ def render_output(prompt_text: str, body_text: str, cursor: bool = False) -> str
     # instead of the raw <|endoftext|> string.
     body_display = clean_for_display(body_text)
     return (
-        '<pre id="output-frame"><span class="prompt-echo">'
+        '<pre id="output-frame"><span class="prompt-echo" style="color:#6fcf97">'
         f"{html.escape(prompt_text)}</span> {html.escape(body_display)}{tail}</pre>"
     )
 
@@ -244,9 +244,14 @@ def render_token_counter(current: int = 0) -> None:
 
 render_token_counter()
 
-prompt = st.text_input(
-    "Prompt", key="prompt", placeholder="elige un prompt de arriba, o escribelo tal cual", label_visibility="collapsed"
-)
+caret_col, input_col = st.columns([0.03, 0.97])
+with caret_col:
+    st.markdown('<div class="prompt-caret">&gt;</div>', unsafe_allow_html=True)
+with input_col:
+    prompt = st.text_input(
+        "Prompt", key="prompt", placeholder="elige un prompt de arriba, o escribelo tal cual",
+        label_visibility="collapsed",
+    )
 
 to_generate = clicked_prompt or (prompt if prompt.strip() and prompt != st.session_state.last_processed else None)
 
