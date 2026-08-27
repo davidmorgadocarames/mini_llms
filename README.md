@@ -82,7 +82,46 @@ Solving Recursive Logic Tasks", Zhiyuan He).
 Este proyecto reproduce ese fallo, lo visualiza, y compara tres arquitecturas para ver
 cuál lo mitiga mejor: un Transformer decoder-only estándar, un encoder-decoder clásico
 (el de "Attention Is All You Need"), y el pipeline "Looped Locate-and-Replace" propuesto
-en el paper. *(En construcción.)*
+en el paper.
+
+Las tres arquitecturas se entrenan **solo** con profundidades 0-5 (`depth_lab/data/artifacts/bool_train.jsonl`)
+y se evalúan con exact-match sobre profundidades 6-12, completamente fuera de distribución
+(otro rango de profundidad, otras semillas) — nunca vistas ni usadas para elegir
+hiperparámetros durante el entrenamiento. El split de validación (mismas profundidades que
+train, semilla distinta) solo se usa para monitorizar el entrenamiento, nunca para la
+comparación final.
+
+![Accuracy vs. profundidad](depth_lab/eval/results/accuracy_vs_depth.png)
+
+Resultado, con las tres arquitecturas ya entrenadas (`python -m depth_lab.eval.run_eval`):
+
+| profundidad | decoder-only | encoder-decoder | LLR |
+|---:|---:|---:|---:|
+| 6  | 0.786 | 0.736 | **0.988** |
+| 7  | 0.762 | 0.648 | **0.946** |
+| 8  | 0.740 | 0.654 | **0.854** |
+| 9  | 0.750 | 0.640 | **0.824** |
+| 10 | **0.714** | 0.582 | 0.688 |
+| 11 | **0.706** | 0.628 | 0.620 |
+| 12 | **0.678** | 0.620 | 0.590 |
+
+LLR domina claramente en profundidades moderadamente OOD (6-9), pero pierde su ventaja
+frente al baseline en las más extremas (10-12) — un patrón más matizado que "LLR siempre
+gana". La razón, verificada directamente (no es una suposición): LLR encadena una
+predicción del locator por cada paréntesis a reducir, y ese número de pasos crece con la
+profundidad (9.7 pasos de media en profundidad 6, frente a 21.8 en profundidad 12). Incluso
+con una precisión por paso altísima, esa precisión también degrada ligeramente con la
+profundidad (99.9% → 95.4%), y ambos efectos se componen multiplicativamente: una cadena de
+~22 pasos al 95.4% cada uno ya no llega ni de lejos al 95.4% global. El baseline, en cambio,
+produce la respuesta en una sola pasada — no tiene ese efecto de composición de errores. Es
+un trade-off real del pipeline "locate-and-replace", no un fallo de implementación.
+
+Reproducible con:
+
+```bash
+python -m depth_lab.data.build_dataset          # genera el dataset (train/val/test por profundidad)
+python -m depth_lab.eval.run_eval               # entrena las 3 arquitecturas y genera el gráfico
+```
 
 ## Contexto y fundamentos
 
