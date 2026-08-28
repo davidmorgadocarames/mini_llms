@@ -84,6 +84,11 @@ tests/            pytest
 - Scripts de entrenamiento ejecutables por CLI (no solo notebooks).
 - Antes de un entrenamiento completo, verificar overfit en un batch pequeño para
   confirmar que la arquitectura es correcta.
+- Cualquier gráfico generado (matplotlib u otro) guarda también los datos crudos que
+  lo alimentan en un `.json` junto al `.png`, con el mismo nombre base (p.ej.
+  `depth_lab/eval/results/accuracy_vs_depth.png` + `.json`) — así se puede regenerar o
+  modificar el gráfico en el futuro sin tener que re-ejecutar todo el entrenamiento/
+  evaluación que lo produjo.
 
 ## Referencias clave
 
