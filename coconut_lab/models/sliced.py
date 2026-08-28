@@ -130,7 +130,7 @@ def train_steps(model: EncoderDecoderTransformer, train_ds: Seq2SeqDataset, opti
 
 @torch.no_grad()
 def generate_response(model: EncoderDecoderTransformer, tokenizer: BPETokenizer, src_text: str, device: str,
-                       max_new_tokens: int = 150) -> str:
+                       max_new_tokens: int = 150, temperature: float = 0.0, top_k: int | None = None) -> str:
     model.eval()
     pad_id = tokenizer.encode(EOT_TOKEN)[0]
     src_ids = tokenizer.encode(src_text)[:SRC_BLOCK_SIZE]
@@ -139,7 +139,8 @@ def generate_response(model: EncoderDecoderTransformer, tokenizer: BPETokenizer,
     src_pad_mask = src == pad_id
 
     out_ids: list[int] = []
-    for grown in model.generate_stream(src, pad_id, max_new_tokens, src_key_padding_mask=src_pad_mask):
+    for grown in model.generate_stream(src, pad_id, max_new_tokens, src_key_padding_mask=src_pad_mask,
+                                        temperature=temperature, top_k=top_k):
         next_id = grown[0, -1].item()
         if next_id == pad_id:
             break

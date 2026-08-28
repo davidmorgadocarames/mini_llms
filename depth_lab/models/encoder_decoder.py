@@ -207,18 +207,38 @@ class EncoderDecoderTransformer(nn.Module):
         return self.decode(tgt_idx, memory, src_key_padding_mask, tgt_key_padding_mask)
 
     def generate_stream(self, src_idx: torch.Tensor, bos_id: int, max_new_tokens: int,
-                         src_key_padding_mask: torch.Tensor | None = None):
+                         src_key_padding_mask: torch.Tensor | None = None,
+                         temperature: float = 0.0, top_k: int | None = None):
         """Encodes once, then decodes autoregressively -- yields the growing
         target sequence after each newly generated token, mirroring
-        mini_llm.model.GPT.generate_stream's interface."""
+        mini_llm.model.GPT.generate_stream's interface.
+
+        temperature=0.0 (the default) keeps the original greedy argmax
+        behavior bit-for-bit -- Fase B's eval and Sliced's GSM8K accuracy
+        eval both rely on deterministic decoding. temperature>0 switches to
+        sampling (needed for Fase C's C.6 multi-seed variance methodology,
+        where a fully deterministic Sliced would trivially show zero
+        seed-variance regardless of actual stability)."""
         with torch.no_grad():
             memory = self.encode(src_idx, src_key_padding_mask)
             tgt = torch.full((src_idx.size(0), 1), bos_id, dtype=torch.long, device=src_idx.device)
             for _ in range(max_new_tokens):
                 logits = self.decode(tgt, memory, src_key_padding_mask)
-                next_id = logits[:, -1, :].argmax(dim=-1, keepdim=True)
+                if temperature > 0.0:
+                    next_id = self._sample(logits[:, -1, :], temperature, top_k)
+                else:
+                    next_id = logits[:, -1, :].argmax(dim=-1, keepdim=True)
                 tgt = torch.cat([tgt, next_id], dim=1)
                 yield tgt
+
+    @staticmethod
+    def _sample(logits: torch.Tensor, temperature: float, top_k: int | None) -> torch.Tensor:
+        logits = logits / temperature
+        if top_k is not None:
+            v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
+            logits[logits < v[:, [-1]]] = -float("inf")
+        probs = F.softmax(logits, dim=-1)
+        return torch.multinomial(probs, num_samples=1)
 
     def num_parameters(self) -> int:
         return sum(p.numel() for p in self.parameters())

@@ -215,7 +215,7 @@ def evaluate_by_steps(models: dict, tokenizer: BPETokenizer, device: str) -> dic
             correct["cracked"] += answers_match(cracked_pred, ex["final_answer"])
 
             sliced_pred = extract_final_number(
-                sliced_mod.generate_response(sliced, tokenizer, ex["question"], device, max_new_tokens=150))
+                sliced_mod.generate_response(sliced, tokenizer, prompt, device, max_new_tokens=150))
             correct["sliced"] += answers_match(sliced_pred, ex["final_answer"])
 
             pressed_result = reduce_with_pressed(drafter, locator, replacer, tokenizer, prompt, device,
