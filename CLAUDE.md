@@ -43,6 +43,35 @@ Proyecto de portfolio: construir un mini-LLM desde cero en dos fases, subido a G
   y `coconut_tui/agent.py` para las dos decisiones de diseño clave: los comandos `/`
   disparan herramientas reales (el modelo no tiene function-calling), y la UI nunca
   muestra razonamiento interno del modelo, solo acciones observables.
+- **[HECHO] Fase C — Coconut interactivo + 3 arquitecturas en razonamiento real**:
+  fine-tuning de instrucciones/chat (Alpaca + oasst1) sobre Coconut (**Cracked**,
+  decoder-only), más la misma comparación de 3 arquitecturas de Fase B pero sobre
+  GSM8K (razonamiento matemático en lenguaje natural) en vez de una gramática
+  sintética: **Sliced** (encoder-decoder desde cero) y **Pressed** (Looped
+  Locate-and-Replace adaptado: un drafter redacta un borrador, locator+replacer
+  reutilizados literalmente de Fase B corrigen su aritmética). Comparación en 5
+  piezas (`coconut_lab/eval/`, resultados y tablas enlazados desde el README):
+  accuracy en GSM8K test por nº de pasos, set propio de 141 ejemplos con 3 semillas
+  (Cracked gana con 21.5%±3.5%, margen pequeño), `lm-evaluation-harness`
+  (`lambada_openai`+`piqa`), eficiencia, y k-fold=5 de estabilidad de entrenamiento
+  (25 entrenamientos individuales, checkpointeados y resumibles automáticamente ante
+  un corte — ver `mini_llm/train/checkpoint.py`). Resultado honesto: a esta escala de
+  parámetros (8-26M) GSM8K real es muchísimo más difícil que el dominio sintético de
+  Fase B — el accuracy exact-match se queda casi en el suelo (0-11%) incluso tras
+  bajar el loss de entrenamiento con claridad, muy distinto del patrón de Fase B
+  donde el dominio sintético se aprendía del todo en pocos miles de pasos. Demo
+  interactiva en `pages/2_Fase_C_Coconut_Interactivo.py` (tercera página de la app de
+  Streamlit), con selector de modelo en popup y chat multi-turno que conserva el
+  historial al cambiar de arquitectura. Nota de proceso: un test de equivalencia
+  durante la integración con `lm-evaluation-harness` destapó un bug real en
+  `coconut_lab/models/sliced.py` (el decoder enmascaraba por error su propio token
+  BOS como si fuera padding, ya que BOS y pad comparten id en el `BPETokenizer` de
+  este proyecto — a diferencia del `CharTokenizer` de Fase B, que los tiene
+  separados — dejando la primera posición sin ninguna clave válida a la que
+  atender). Afectaba a todos los checkpoints de Sliced entrenados hasta ese momento;
+  arreglado, Sliced reentrenado desde cero, y los puntos de C.6 afectados
+  re-ejecutados con el checkpoint corregido — mismo criterio de verificar antes de
+  concluir que en Fases A y B.
 
 ## Entorno
 
@@ -68,7 +97,12 @@ coconut_tui/      TUI de agente (Textual) sobre el modelo de Fase A: events.py/b
                   (contrato Pydantic, sin Textual), providers/ (LLM desacoplado),
                   tools/ (read/test/diff reales), agent.py (orquestador, sin Textual),
                   widgets/ + app.py (la única capa que sí importa Textual)
-scripts/          Utilidades sueltas (p.ej. clean_vtt.py para los transcripts)
+coconut_lab/      Fase C: data/ (Alpaca, oasst1, GSM8K), models/ (cracked.py, sliced.py,
+                  pressed.py + pressed_loop.py), eval/ (run_eval.py, run_domain_eval.py,
+                  run_lm_eval.py, run_kfold.py, lm_eval_adapter.py, resultados en
+                  eval/results/), logos.py (ASCII-art de Cracked/Sliced/Pressed)
+scripts/          Utilidades sueltas (p.ej. clean_vtt.py para los transcripts,
+                  render_logo.py para rasterizar los logos ASCII-art a PNG)
 tests/            pytest
 ```
 
