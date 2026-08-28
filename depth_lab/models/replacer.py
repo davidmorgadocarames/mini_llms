@@ -48,6 +48,32 @@ CHECKPOINT_DIR = Path(__file__).resolve().parent.parent / "checkpoints"
 BLOCK_SIZE = 32  # spans are always short: e.g. "(False and False)" reversed + " => " + value
 
 
+class KVCache:
+    """Same idea as mini_llm.model.layers.KVCache (Fase A/C's GPT), kept as
+    an independent copy here rather than imported -- matches this file's
+    existing pattern of being self-contained, not reaching into mini_llm.
+    Even simpler than GPT's version: NoPE means no RoPE position offsetting
+    to track, just accumulate k/v per layer. Purely additive: every
+    kv_cache parameter defaults to None, reproducing prior behavior
+    bit-for-bit for any caller that doesn't pass one."""
+
+    def __init__(self, n_layer: int):
+        self.k: list[torch.Tensor | None] = [None] * n_layer
+        self.v: list[torch.Tensor | None] = [None] * n_layer
+
+    @property
+    def length(self) -> int:
+        return 0 if self.k[0] is None else self.k[0].size(2)
+
+    def update(self, layer_idx: int, k: torch.Tensor, v: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        if self.k[layer_idx] is None:
+            self.k[layer_idx], self.v[layer_idx] = k, v
+        else:
+            self.k[layer_idx] = torch.cat([self.k[layer_idx], k], dim=2)
+            self.v[layer_idx] = torch.cat([self.v[layer_idx], v], dim=2)
+        return self.k[layer_idx], self.v[layer_idx]
+
+
 class CausalSelfAttention(nn.Module):
     """Plain scaled dot-product attention with a causal mask -- no RoPE, no
     ALiBi, no learned position embeddings anywhere in this model. Position
@@ -64,13 +90,21 @@ class CausalSelfAttention(nn.Module):
         self.o_proj = nn.Linear(d_model, d_model)
         self.dropout = dropout
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, kv_cache: KVCache | None = None,
+                layer_idx: int | None = None) -> torch.Tensor:
         B, T, _ = x.shape
         q = self.q_proj(x).view(B, T, self.n_head, self.d_head).transpose(1, 2)
         k = self.k_proj(x).view(B, T, self.n_head, self.d_head).transpose(1, 2)
         v = self.v_proj(x).view(B, T, self.n_head, self.d_head).transpose(1, 2)
+
+        if kv_cache is not None:
+            k, v = kv_cache.update(layer_idx, k, v)
+
+        # a single new token (T_q=1) attending to the full cached history
+        # (T_k>1) has nothing "future" to mask by construction
+        is_causal = q.size(2) == k.size(2)
         out = F.scaled_dot_product_attention(
-            q, k, v, is_causal=True, dropout_p=self.dropout if self.training else 0.0
+            q, k, v, is_causal=is_causal, dropout_p=self.dropout if self.training else 0.0
         )
         out = out.transpose(1, 2).contiguous().view(B, T, self.n_head * self.d_head)
         return self.o_proj(out)
@@ -99,8 +133,9 @@ class ReplacerBlock(nn.Module):
         self.norm1 = nn.LayerNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = x + self.attn(self.norm1(x))
+    def forward(self, x: torch.Tensor, kv_cache: KVCache | None = None,
+                layer_idx: int | None = None) -> torch.Tensor:
+        x = x + self.attn(self.norm1(x), kv_cache, layer_idx)
         x = x + self.ff(self.norm2(x))
         return x
 
@@ -137,12 +172,16 @@ class Replacer(nn.Module):
         elif isinstance(module, nn.Embedding):
             nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
-    def forward(self, idx: torch.Tensor, targets: torch.Tensor | None = None):
+    def forward(self, idx: torch.Tensor, targets: torch.Tensor | None = None,
+                kv_cache: KVCache | None = None):
         B, T = idx.shape
-        assert T <= self.config.block_size, f"sequence length {T} exceeds block_size {self.config.block_size}"
-        x = self.tok_emb(idx)
-        for block in self.blocks:
-            x = block(x)
+        start_pos = kv_cache.length if kv_cache is not None else 0
+        assert start_pos + T <= self.config.block_size, (
+            f"sequence length {start_pos + T} exceeds block_size {self.config.block_size}"
+        )
+        x = self.tok_emb(idx)  # NoPE: no position added regardless of kv_cache use
+        for i, block in enumerate(self.blocks):
+            x = block(x, kv_cache, i)
         x = self.norm_f(x)
         logits = self.lm_head(x)
 
@@ -153,18 +192,37 @@ class Replacer(nn.Module):
 
     def generate_stream(self, idx: torch.Tensor, max_new_tokens: int,
                          temperature: float = 1.0, top_k: int | None = None):
+        """Uses a KV cache so each step only runs the new token through the
+        network, same as mini_llm.model.GPT.generate_stream -- with the
+        same fallback to the original recompute-every-step behavior when
+        the cache can't help (prompt + max_new_tokens would exceed
+        block_size)."""
         with torch.no_grad():
+            if idx.size(1) + max_new_tokens > self.config.block_size:
+                for _ in range(max_new_tokens):
+                    idx_cond = idx if idx.size(1) <= self.config.block_size else idx[:, -self.config.block_size:]
+                    logits, _ = self(idx_cond)
+                    idx = torch.cat((idx, self._sample(logits[:, -1, :], temperature, top_k)), dim=1)
+                    yield idx
+                return
+
+            kv_cache = KVCache(self.config.n_layer)
+            idx_cond = idx if idx.size(1) <= self.config.block_size else idx[:, -self.config.block_size:]
+            logits, _ = self(idx_cond, kv_cache=kv_cache)
             for _ in range(max_new_tokens):
-                idx_cond = idx if idx.size(1) <= self.config.block_size else idx[:, -self.config.block_size:]
-                logits, _ = self(idx_cond)
-                logits = logits[:, -1, :] / temperature
-                if top_k is not None:
-                    v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
-                    logits[logits < v[:, [-1]]] = -float("inf")
-                probs = F.softmax(logits, dim=-1)
-                idx_next = torch.multinomial(probs, num_samples=1)
+                idx_next = self._sample(logits[:, -1, :], temperature, top_k)
                 idx = torch.cat((idx, idx_next), dim=1)
                 yield idx
+                logits, _ = self(idx_next, kv_cache=kv_cache)
+
+    @staticmethod
+    def _sample(logits: torch.Tensor, temperature: float, top_k: int | None) -> torch.Tensor:
+        logits = logits / temperature
+        if top_k is not None:
+            v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
+            logits[logits < v[:, [-1]]] = -float("inf")
+        probs = F.softmax(logits, dim=-1)
+        return torch.multinomial(probs, num_samples=1)
 
     def num_parameters(self) -> int:
         return sum(p.numel() for p in self.parameters())

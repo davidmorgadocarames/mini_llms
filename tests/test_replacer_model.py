@@ -3,7 +3,7 @@ import torch
 from depth_lab.data.generator import generate_dataset
 from depth_lab.data.loader import ExprDataset, build_replacer_examples
 from depth_lab.models.baseline import build_optimizer, evaluate_exact_match, train_steps
-from depth_lab.models.replacer import Replacer, ReplacerConfig
+from depth_lab.models.replacer import KVCache, Replacer, ReplacerConfig
 from depth_lab.tokenizer import CharTokenizer
 
 BLOCK_SIZE = 32
@@ -62,3 +62,60 @@ def test_replacer_overfits_a_tiny_batch():
 
     acc = evaluate_exact_match(model, tokenizer, replacer_examples, device="cpu")
     assert acc >= 0.9
+
+
+def test_kv_cache_produces_identical_logits_to_full_recompute():
+    """Same correctness property as mini_llm.model.GPT's cache test: a full
+    from-scratch forward pass and one-token-at-a-time cached decoding must
+    match numerically at every position."""
+    torch.manual_seed(0)
+    tok = CharTokenizer()
+    model = _tiny_model(tok.vocab_size)
+    model.eval()
+
+    full_idx = torch.tensor([tok.encode("(True a")])
+
+    ref_logits = []
+    for t in range(1, 7):
+        logits, _ = model(full_idx[:, :t])
+        ref_logits.append(logits[:, -1, :])
+
+    cache = KVCache(model.config.n_layer)
+    logits, _ = model(full_idx[:, :1], kv_cache=cache)
+    cached_logits = [logits[:, -1, :]]
+    for t in range(1, 6):
+        logits, _ = model(full_idx[:, t:t + 1], kv_cache=cache)
+        cached_logits.append(logits[:, -1, :])
+
+    for t, (ref, cached) in enumerate(zip(ref_logits, cached_logits)):
+        assert torch.allclose(ref, cached, atol=1e-4), f"mismatch at position {t}"
+
+
+def test_generate_stream_with_cache_matches_full_recompute_given_same_seed():
+    tok = CharTokenizer()
+
+    torch.manual_seed(42)
+    model = _tiny_model(tok.vocab_size)
+    model.eval()
+    torch.manual_seed(123)
+    idx = torch.tensor([[tok.stoi["("], tok.stoi["T"], tok.stoi["r"]]])
+
+    torch.manual_seed(7)
+    out_cached = []
+    for grown in model.generate_stream(idx.clone(), max_new_tokens=5, temperature=1.0, top_k=5):
+        out_cached = grown
+
+    torch.manual_seed(42)
+    model_b = _tiny_model(tok.vocab_size)
+    model_b.eval()
+    torch.manual_seed(123)
+    idx_b = torch.tensor([[tok.stoi["("], tok.stoi["T"], tok.stoi["r"]]])
+    torch.manual_seed(7)
+    out_fallback = idx_b.clone()
+    with torch.no_grad():
+        for _ in range(5):
+            logits, _ = model_b(out_fallback)
+            idx_next = model_b._sample(logits[:, -1, :], 1.0, 5)
+            out_fallback = torch.cat((out_fallback, idx_next), dim=1)
+
+    assert torch.equal(out_cached, out_fallback)
