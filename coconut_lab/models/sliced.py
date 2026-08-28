@@ -113,6 +113,14 @@ def train_steps(model: EncoderDecoderTransformer, train_ds: Seq2SeqDataset, opti
             src, tgt_in, tgt_out = src.to(device), tgt_in.to(device), tgt_out.to(device)
             src_pad_mask = src == pad_id
             tgt_pad_mask = tgt_in == pad_id
+            # Position 0 of tgt_in is always the real BOS token (Seq2SeqDataset
+            # prepends it), never padding -- but BOS and pad share the same id
+            # in this project's BPE vocab (no dedicated tokens for either), so
+            # the equality check above misclassifies it. Left uncorrected, the
+            # decoder's first self-attention query has zero valid keys under
+            # causal+padding masking and can never learn to predict the first
+            # output token from real context.
+            tgt_pad_mask[:, 0] = False
 
             with torch.autocast(device_type=device, dtype=amp_dtype, enabled=use_amp):
                 logits = model(src, tgt_in, src_key_padding_mask=src_pad_mask, tgt_key_padding_mask=tgt_pad_mask)
