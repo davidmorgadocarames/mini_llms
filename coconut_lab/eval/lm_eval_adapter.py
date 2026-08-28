@@ -146,12 +146,19 @@ class SlicedAdapter(LM):
         self._device = device
         self.bos_id = tokenizer.encode(EOT_TOKEN)[0]
         self.src_block_size = sliced_mod.SRC_BLOCK_SIZE
+        self.tgt_block_size = sliced_mod.TGT_BLOCK_SIZE
 
     @torch.no_grad()
     def _loglikelihood_one(self, context: str, continuation: str) -> tuple[float, bool]:
         cont_ids = self.tokenizer.encode(continuation)
         if not cont_ids:
             return 0.0, True
+        # Some harness tasks (e.g. piqa's answer choices) are full sentences,
+        # not single words -- Sliced's decoder window is fixed-size, so an
+        # over-long continuation has to be truncated rather than crash the
+        # whole eval run. Matches Seq2SeqDataset's own tgt_block_size budget.
+        if len(cont_ids) > self.tgt_block_size:
+            cont_ids = cont_ids[:self.tgt_block_size]
 
         src_ids = self.tokenizer.encode(context)[:self.src_block_size] if context else [self.bos_id]
         src_ids = src_ids + [self.bos_id] * (self.src_block_size - len(src_ids))

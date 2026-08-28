@@ -1,0 +1,62 @@
+{
+  "cracked": {
+    "lambada_openai": {
+      "name": "lambada_openai",
+      "alias": "lambada_openai",
+      "sample_len": 5153,
+      "perplexity,none": 17571.5775576848,
+      "perplexity_stderr,none": 1203.8919711298597,
+      "acc,none": 0.07413157384048127,
+      "acc_stderr,none": 0.0036499618074347898
+    },
+    "piqa": {
+      "name": "piqa",
+      "alias": "piqa",
+      "sample_len": 1838,
+      "acc,none": 0.5484221980413493,
+      "acc_stderr,none": 0.011610989358814248,
+      "acc_norm,none": 0.5348204570184983,
+      "acc_norm_stderr,none": 0.011637500993816005
+    }
+  },
+  "sliced": {
+    "lambada_openai": {
+      "name": "lambada_openai",
+      "alias": "lambada_openai",
+      "sample_len": 5153,
+      "perplexity,none": 32685580.76208605,
+      "perplexity_stderr,none": 2361736.7675731275,
+      "acc,none": 0.0,
+      "acc_stderr,none": 0.0
+    },
+    "piqa": {
+      "name": "piqa",
+      "alias": "piqa",
+      "sample_len": 1838,
+      "acc,none": 0.5364526659412405,
+      "acc_stderr,none": 0.01163477983787243,
+      "acc_norm,none": 0.5206746463547334,
+      "acc_norm_stderr,none": 0.011655846995729838
+    }
+  },
+  "pressed": {
+    "lambada_openai": {
+      "name": "lambada_openai",
+      "alias": "lambada_openai",
+      "sample_len": 5153,
+      "perplexity,none": 42939.09673845227,
+      "perplexity_stderr,none": 2926.2618183344816,
+      "acc,none": 0.04424607025033961,
+      "acc_stderr,none": 0.0028649857835483794
+    },
+    "piqa": {
+      "name": "piqa",
+      "alias": "piqa",
+      "sample_len": 1838,
+      "acc,none": 0.5549510337323177,
+      "acc_stderr,none": 0.011595157509775814,
+      "acc_norm,none": 0.5571273122959739,
+      "acc_norm_stderr,none": 0.011589430503509043
+    }
+  }
+}

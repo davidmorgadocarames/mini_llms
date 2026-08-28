@@ -1,7 +1,7 @@
 {
   "cracked": {
     "params": 26354176,
-    "latency_s": 0.13197898864746094
+    "latency_s": 0.12865948677062988
   },
   "sliced_encoder_decoder": {
     "params": 7626752
@@ -16,9 +16,9 @@
     "params": 1643648
   },
   "sliced": {
-    "latency_s": 0.07967710494995117
+    "latency_s": 0.0776984691619873
   },
   "pressed": {
-    "latency_s": 0.02816295623779297
+    "latency_s": 0.02735137939453125
   }
 }
