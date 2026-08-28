@@ -159,3 +159,50 @@ class Seq2SeqDataset(Dataset):
         src_t = torch.tensor(src, dtype=torch.long)
         tgt_t = torch.tensor(tgt, dtype=torch.long)
         return src_t, tgt_t[:-1], tgt_t[1:]
+
+
+class PressedLocatorDataset(Dataset):
+    """Fase C.5 ("Pressed"): per-token binary classification over BPE
+    tokens, same idea as depth_lab.models.locator's char-level
+    LocatorDataset, but character spans (from
+    coconut_lab.data.prepare_pressed) have to be converted to token spans
+    first -- BPE merges multiple characters into one token, so token index
+    != character index the way it does with depth_lab's char tokenizer.
+    tokenizer.encode_with_offsets() is what makes that conversion possible."""
+
+    def __init__(self, examples: list[dict], tokenizer: BPETokenizer, block_size: int):
+        self.tokenizer = tokenizer
+        self.block_size = block_size
+        self.pad_id = tokenizer.encode(EOT_TOKEN)[0]
+
+        self.examples: list[tuple[list[int], int, int]] = []
+        for ex in examples:
+            text = ex["text"]
+            char_start, char_end = ex["span"]
+            ids, offsets = tokenizer.encode_with_offsets(text)
+            if len(ids) > block_size:
+                continue
+            tok_start, tok_end = None, None
+            for i, (s, e) in enumerate(offsets):
+                if e > char_start and s < char_end:
+                    if tok_start is None:
+                        tok_start = i
+                    tok_end = i + 1
+            if tok_start is None:
+                continue  # defensive: shouldn't happen for a well-formed span
+            self.examples.append((ids, tok_start, tok_end))
+
+    def __len__(self) -> int:
+        return len(self.examples)
+
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        ids, tok_start, tok_end = self.examples[idx]
+        pad_len = self.block_size - len(ids)
+        padded_ids = ids + [self.pad_id] * pad_len
+        labels = [1.0 if tok_start <= i < tok_end else 0.0 for i in range(len(ids))] + [0.0] * pad_len
+        pad_mask = [False] * len(ids) + [True] * pad_len
+        return (
+            torch.tensor(padded_ids, dtype=torch.long),
+            torch.tensor(labels, dtype=torch.float32),
+            torch.tensor(pad_mask, dtype=torch.bool),
+        )

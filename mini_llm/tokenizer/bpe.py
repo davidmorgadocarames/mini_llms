@@ -45,6 +45,14 @@ class BPETokenizer:
     def encode(self, text: str) -> list[int]:
         return self._tok.encode(text).ids
 
+    def encode_with_offsets(self, text: str) -> tuple[list[int], list[tuple[int, int]]]:
+        """Like encode(), but also returns each token's (start, end) character
+        offset into `text` -- needed to convert a character-level span into a
+        token-level span (BPE merges multiple characters per token, so token
+        index != character index, unlike depth_lab's char-level tokenizer)."""
+        enc = self._tok.encode(text)
+        return enc.ids, enc.offsets
+
     def decode(self, ids: list[int]) -> str:
         return self._tok.decode(ids)
 
