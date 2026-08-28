@@ -30,6 +30,7 @@ import torch.nn.functional as F
 from depth_lab.data.build_dataset import ARTIFACTS_DIR, load_jsonl
 from depth_lab.data.loader import LocatorDataset, build_locator_examples
 from depth_lab.tokenizer import CharTokenizer
+from mini_llm.train.checkpoint import load_checkpoint, save_checkpoint
 
 CHECKPOINT_DIR = Path(__file__).resolve().parent.parent / "checkpoints"
 BLOCK_SIZE = 384  # same bound as the other Fase B models: max confirmed expr length is 335 chars
@@ -209,9 +210,20 @@ def build_optimizer(model: nn.Module, lr: float, weight_decay: float) -> torch.o
 
 
 def train_steps(model: Locator, train_ds: LocatorDataset, optimizer: torch.optim.Optimizer,
-                 device: str, max_steps: int, batch_size: int, log_interval: int = 0) -> None:
+                 device: str, max_steps: int, batch_size: int, log_interval: int = 0,
+                 checkpoint_path: Path | None = None, checkpoint_interval: int = 0) -> None:
+    """checkpoint_path/checkpoint_interval: see
+    coconut_lab.models.cracked.train_steps's docstring -- same
+    resume-if-exists, save-every-N-steps, backward-compatible-by-default
+    pattern, needed for Fase C's k-fold (this function trains Pressed's
+    locator once per fold)."""
+    start_step = 0
+    if checkpoint_path is not None and checkpoint_path.exists():
+        start_step = load_checkpoint(checkpoint_path, model, optimizer, device)
+        print(f"resumed from {checkpoint_path} at step {start_step}")
+
     loader = torch.utils.data.DataLoader(train_ds, batch_size=batch_size, shuffle=True, drop_last=True)
-    step = 0
+    step = start_step
     while step < max_steps:
         for ids, labels, pad_mask in loader:
             if step >= max_steps:
@@ -229,6 +241,12 @@ def train_steps(model: Locator, train_ds: LocatorDataset, optimizer: torch.optim
             if log_interval and step % log_interval == 0:
                 print(f"step {step:6d} | loss {loss.item():.4f}")
             step += 1
+
+            if checkpoint_path is not None and checkpoint_interval and step % checkpoint_interval == 0:
+                save_checkpoint(checkpoint_path, model, optimizer, step, model.config)
+
+    if checkpoint_path is not None:
+        save_checkpoint(checkpoint_path, model, optimizer, step, model.config)
 
 
 def parse_args() -> argparse.Namespace:

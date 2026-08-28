@@ -34,6 +34,7 @@ from coconut_lab.data.prepare_instructions import ARTIFACTS_DIR, load_jsonl
 from mini_llm.model import GPT
 from mini_llm.tokenizer import BPETokenizer
 from mini_llm.tokenizer.bpe import EOT_TOKEN
+from mini_llm.train.checkpoint import load_checkpoint, save_checkpoint
 
 HF_REPO = "davidmorgado/coconut-mini-llm"
 CHECKPOINT_DIR = Path(__file__).resolve().parent.parent / "checkpoints"
@@ -79,20 +80,34 @@ def masked_loss(logits: torch.Tensor, y: torch.Tensor, y_mask: torch.Tensor) -> 
 
 def train_steps(model: GPT, train_ds: InstructionDataset, optimizer: torch.optim.Optimizer,
                  device: str, max_steps: int, batch_size: int, log_interval: int = 0,
-                 grad_accum_steps: int = 1, dtype: str = "bfloat16") -> None:
+                 grad_accum_steps: int = 1, dtype: str = "bfloat16",
+                 checkpoint_path: Path | None = None, checkpoint_interval: int = 0) -> None:
     """grad_accum_steps splits each optimizer step into that many smaller
     mini-batches (gradients summed, not overwritten) -- the standard fix for
     a batch that would otherwise need more VRAM than fits, at the same
     effective batch size (mini_llm/train/train.py already does this for
     Fase A; Fase C's scripts hadn't picked it up). autocast is only enabled
     on CUDA, so CPU-run tests are completely unaffected -- same exact
-    behavior and results as before this was added."""
+    behavior and results as before this was added.
+
+    checkpoint_path/checkpoint_interval (both no-ops by default, same
+    backward-compatible pattern): if checkpoint_path already exists when
+    training starts, resumes from it (model+optimizer+step) instead of
+    starting at 0; every checkpoint_interval steps (and at the end) the same
+    path is overwritten with the current state. Needed for Fase C's k-fold
+    (25 unattended training runs) so a crash/power loss mid-run doesn't lose
+    everything -- see mini_llm.train.checkpoint."""
     amp_dtype = {"bfloat16": torch.bfloat16, "float16": torch.float16, "float32": torch.float32}[dtype]
     use_amp = device == "cuda" and amp_dtype != torch.float32
 
+    start_step = 0
+    if checkpoint_path is not None and checkpoint_path.exists():
+        start_step = load_checkpoint(checkpoint_path, model, optimizer, device)
+        print(f"resumed from {checkpoint_path} at step {start_step}")
+
     loader = torch.utils.data.DataLoader(train_ds, batch_size=batch_size, shuffle=True, drop_last=True)
     data_iter = iter(loader)
-    step = 0
+    step = start_step
     while step < max_steps:
         optimizer.zero_grad(set_to_none=True)
         last_loss = 0.0
@@ -114,6 +129,12 @@ def train_steps(model: GPT, train_ds: InstructionDataset, optimizer: torch.optim
         if log_interval and step % log_interval == 0:
             print(f"step {step:6d} | loss {last_loss:.4f}")
         step += 1
+
+        if checkpoint_path is not None and checkpoint_interval and step % checkpoint_interval == 0:
+            save_checkpoint(checkpoint_path, model, optimizer, step, model.config)
+
+    if checkpoint_path is not None:
+        save_checkpoint(checkpoint_path, model, optimizer, step, model.config)
 
 
 @torch.no_grad()

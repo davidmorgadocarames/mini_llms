@@ -36,6 +36,7 @@ from coconut_lab.data.prepare_instructions import ARTIFACTS_DIR, load_jsonl
 from depth_lab.models.encoder_decoder import EncDecConfig, EncoderDecoderTransformer
 from mini_llm.tokenizer import BPETokenizer
 from mini_llm.tokenizer.bpe import EOT_TOKEN
+from mini_llm.train.checkpoint import load_checkpoint, save_checkpoint
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -91,16 +92,22 @@ def build_optimizer(model: torch.nn.Module, lr: float, weight_decay: float) -> t
 
 def train_steps(model: EncoderDecoderTransformer, train_ds: Seq2SeqDataset, optimizer: torch.optim.Optimizer,
                  device: str, max_steps: int, batch_size: int, pad_id: int, log_interval: int = 0,
-                 grad_accum_steps: int = 1, dtype: str = "bfloat16") -> None:
+                 grad_accum_steps: int = 1, dtype: str = "bfloat16",
+                 checkpoint_path: Path | None = None, checkpoint_interval: int = 0) -> None:
     """See coconut_lab.models.cracked.train_steps's docstring for why
-    grad_accum_steps/dtype exist -- same standard fix, same
-    CUDA-only/backward-compatible defaults."""
+    grad_accum_steps/dtype/checkpoint_path/checkpoint_interval exist -- same
+    standard fix, same CUDA-only/backward-compatible defaults."""
     amp_dtype = {"bfloat16": torch.bfloat16, "float16": torch.float16, "float32": torch.float32}[dtype]
     use_amp = device == "cuda" and amp_dtype != torch.float32
 
+    start_step = 0
+    if checkpoint_path is not None and checkpoint_path.exists():
+        start_step = load_checkpoint(checkpoint_path, model, optimizer, device)
+        print(f"resumed from {checkpoint_path} at step {start_step}")
+
     loader = torch.utils.data.DataLoader(train_ds, batch_size=batch_size, shuffle=True, drop_last=True)
     data_iter = iter(loader)
-    step = 0
+    step = start_step
     while step < max_steps:
         optimizer.zero_grad(set_to_none=True)
         last_loss = 0.0
@@ -134,6 +141,12 @@ def train_steps(model: EncoderDecoderTransformer, train_ds: Seq2SeqDataset, opti
         if log_interval and step % log_interval == 0:
             print(f"step {step:6d} | loss {last_loss:.4f}")
         step += 1
+
+        if checkpoint_path is not None and checkpoint_interval and step % checkpoint_interval == 0:
+            save_checkpoint(checkpoint_path, model, optimizer, step, model.config)
+
+    if checkpoint_path is not None:
+        save_checkpoint(checkpoint_path, model, optimizer, step, model.config)
 
 
 @torch.no_grad()
