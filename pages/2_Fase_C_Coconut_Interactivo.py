@@ -122,11 +122,22 @@ footer {{ visibility: hidden; }}
 }}
 @media (max-width: 767px) {{ .st-key-output-panel {{ max-height: 380px !important; }} }}
 
-#output-frame {{
-    white-space: pre-wrap !important; word-break: break-word;
-    line-height: 1.55; font-size: 0.92rem; color: #d8dee2; margin: 0; font-family: inherit;
+/* Chat bubbles, ChatGPT/Gemini-style: user right-aligned (green-tinted),
+   assistant left-aligned (dark panel), instead of a plain terminal block. */
+.chat-row {{ display: flex; margin: 0.45rem 0; }}
+.chat-row.user {{ justify-content: flex-end; }}
+.chat-row.assistant {{ justify-content: flex-start; }}
+.chat-bubble {{
+    max-width: 75%; padding: 0.55rem 0.9rem; border-radius: 16px;
+    line-height: 1.5; font-size: 0.92rem; white-space: pre-wrap; word-break: break-word;
+    font-family: inherit;
 }}
-#output-frame .prompt-echo {{ color: #6fcf97; }}
+.chat-bubble.user {{
+    background: #1f6f4a; color: #eafff2; border-bottom-right-radius: 4px;
+}}
+.chat-bubble.assistant {{
+    background: #1a2124; color: #d8dee2; border: 1px solid #23292c; border-bottom-left-radius: 4px;
+}}
 
 .prompt-caret {{ color: #6fcf97; font-weight: 700; font-size: 1.1rem; display: flex;
     align-items: center; height: 2.6rem; }}
@@ -256,18 +267,18 @@ with col_reset:
         st.rerun()
 
 
+def _bubble(role: str, text: str) -> str:
+    body = html.escape(text).replace("\n", "<br>")
+    return f'<div class="chat-row {role}"><div class="chat-bubble {role}">{body}</div></div>'
+
+
 def render_conversation(history: list[dict], cursor_text: str | None = None) -> str:
     if not history and cursor_text is None:
-        return '<pre id="output-frame"></pre>'
-    parts = []
-    for turn in history:
-        if turn["role"] == "user":
-            parts.append(f'<span class="prompt-echo">&gt; {html.escape(turn["text"])}</span>')
-        else:
-            parts.append(html.escape(turn["text"]).replace("\n\n", "<br><br>"))
+        return ""
+    parts = [_bubble(turn["role"], turn["text"]) for turn in history]
     if cursor_text is not None:
-        parts.append(html.escape(cursor_text) + "&#9608;")
-    return '<pre id="output-frame">' + "\n\n".join(parts) + "</pre>"
+        parts.append(_bubble("assistant", cursor_text + "▌"))
+    return "".join(parts)
 
 
 st.markdown(
