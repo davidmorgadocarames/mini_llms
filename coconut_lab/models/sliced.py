@@ -90,27 +90,42 @@ def build_optimizer(model: torch.nn.Module, lr: float, weight_decay: float) -> t
 
 
 def train_steps(model: EncoderDecoderTransformer, train_ds: Seq2SeqDataset, optimizer: torch.optim.Optimizer,
-                 device: str, max_steps: int, batch_size: int, pad_id: int, log_interval: int = 0) -> None:
+                 device: str, max_steps: int, batch_size: int, pad_id: int, log_interval: int = 0,
+                 grad_accum_steps: int = 1, dtype: str = "bfloat16") -> None:
+    """See coconut_lab.models.cracked.train_steps's docstring for why
+    grad_accum_steps/dtype exist -- same standard fix, same
+    CUDA-only/backward-compatible defaults."""
+    amp_dtype = {"bfloat16": torch.bfloat16, "float16": torch.float16, "float32": torch.float32}[dtype]
+    use_amp = device == "cuda" and amp_dtype != torch.float32
+
     loader = torch.utils.data.DataLoader(train_ds, batch_size=batch_size, shuffle=True, drop_last=True)
+    data_iter = iter(loader)
     step = 0
     while step < max_steps:
-        for src, tgt_in, tgt_out in loader:
-            if step >= max_steps:
-                break
+        optimizer.zero_grad(set_to_none=True)
+        last_loss = 0.0
+        for _ in range(grad_accum_steps):
+            try:
+                src, tgt_in, tgt_out = next(data_iter)
+            except StopIteration:
+                data_iter = iter(loader)
+                src, tgt_in, tgt_out = next(data_iter)
             src, tgt_in, tgt_out = src.to(device), tgt_in.to(device), tgt_out.to(device)
             src_pad_mask = src == pad_id
             tgt_pad_mask = tgt_in == pad_id
 
-            logits = model(src, tgt_in, src_key_padding_mask=src_pad_mask, tgt_key_padding_mask=tgt_pad_mask)
-            loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)), tgt_out.reshape(-1), ignore_index=pad_id)
-
-            optimizer.zero_grad(set_to_none=True)
+            with torch.autocast(device_type=device, dtype=amp_dtype, enabled=use_amp):
+                logits = model(src, tgt_in, src_key_padding_mask=src_pad_mask, tgt_key_padding_mask=tgt_pad_mask)
+                loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)), tgt_out.reshape(-1),
+                                        ignore_index=pad_id) / grad_accum_steps
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            optimizer.step()
-            if log_interval and step % log_interval == 0:
-                print(f"step {step:6d} | loss {loss.item():.4f}")
-            step += 1
+            last_loss += loss.item()
+
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        optimizer.step()
+        if log_interval and step % log_interval == 0:
+            print(f"step {step:6d} | loss {last_loss:.4f}")
+        step += 1
 
 
 @torch.no_grad()
@@ -144,6 +159,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--lr", type=float, default=3e-4)
     p.add_argument("--weight-decay", type=float, default=0.01)
     p.add_argument("--log-interval", type=int, default=100)
+    p.add_argument("--grad-accum-steps", type=int, default=1)
+    p.add_argument("--dtype", default="bfloat16", choices=["bfloat16", "float16", "float32"])
     p.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     p.add_argument("--out-dir", default=str(CHECKPOINT_DIR))
     return p.parse_args()
@@ -178,7 +195,8 @@ def main() -> None:
     if args.device == "cuda":
         torch.cuda.reset_peak_memory_stats()
     t0 = time.time()
-    train_steps(model, train_ds, optimizer, args.device, args.max_steps, args.batch_size, pad_id, args.log_interval)
+    train_steps(model, train_ds, optimizer, args.device, args.max_steps, args.batch_size, pad_id, args.log_interval,
+                args.grad_accum_steps, args.dtype)
     elapsed = time.time() - t0
     print(f"\ntraining took {elapsed:.1f}s for {args.max_steps} steps ({elapsed / args.max_steps:.3f}s/step)")
     if args.device == "cuda":

@@ -78,24 +78,42 @@ def masked_loss(logits: torch.Tensor, y: torch.Tensor, y_mask: torch.Tensor) -> 
 
 
 def train_steps(model: GPT, train_ds: InstructionDataset, optimizer: torch.optim.Optimizer,
-                 device: str, max_steps: int, batch_size: int, log_interval: int = 0) -> None:
+                 device: str, max_steps: int, batch_size: int, log_interval: int = 0,
+                 grad_accum_steps: int = 1, dtype: str = "bfloat16") -> None:
+    """grad_accum_steps splits each optimizer step into that many smaller
+    mini-batches (gradients summed, not overwritten) -- the standard fix for
+    a batch that would otherwise need more VRAM than fits, at the same
+    effective batch size (mini_llm/train/train.py already does this for
+    Fase A; Fase C's scripts hadn't picked it up). autocast is only enabled
+    on CUDA, so CPU-run tests are completely unaffected -- same exact
+    behavior and results as before this was added."""
+    amp_dtype = {"bfloat16": torch.bfloat16, "float16": torch.float16, "float32": torch.float32}[dtype]
+    use_amp = device == "cuda" and amp_dtype != torch.float32
+
     loader = torch.utils.data.DataLoader(train_ds, batch_size=batch_size, shuffle=True, drop_last=True)
+    data_iter = iter(loader)
     step = 0
     while step < max_steps:
-        for x, y, y_mask in loader:
-            if step >= max_steps:
-                break
+        optimizer.zero_grad(set_to_none=True)
+        last_loss = 0.0
+        for _ in range(grad_accum_steps):
+            try:
+                x, y, y_mask = next(data_iter)
+            except StopIteration:
+                data_iter = iter(loader)
+                x, y, y_mask = next(data_iter)
             x, y, y_mask = x.to(device), y.to(device), y_mask.to(device)
-            logits, _ = model(x)
-            loss = masked_loss(logits, y, y_mask)
-
-            optimizer.zero_grad(set_to_none=True)
+            with torch.autocast(device_type=device, dtype=amp_dtype, enabled=use_amp):
+                logits, _ = model(x)
+                loss = masked_loss(logits, y, y_mask) / grad_accum_steps
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            optimizer.step()
-            if log_interval and step % log_interval == 0:
-                print(f"step {step:6d} | loss {loss.item():.4f}")
-            step += 1
+            last_loss += loss.item()
+
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        optimizer.step()
+        if log_interval and step % log_interval == 0:
+            print(f"step {step:6d} | loss {last_loss:.4f}")
+        step += 1
 
 
 @torch.no_grad()
@@ -121,6 +139,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--lr", type=float, default=5e-5)  # small: fine-tuning, not pretraining from scratch
     p.add_argument("--weight-decay", type=float, default=0.01)
     p.add_argument("--log-interval", type=int, default=100)
+    p.add_argument("--grad-accum-steps", type=int, default=1)
+    p.add_argument("--dtype", default="bfloat16", choices=["bfloat16", "float16", "float32"])
     p.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     p.add_argument("--out-dir", default=str(CHECKPOINT_DIR))
     return p.parse_args()
@@ -158,7 +178,8 @@ def main() -> None:
     if args.device == "cuda":
         torch.cuda.reset_peak_memory_stats()
     t0 = time.time()
-    train_steps(model, train_ds, optimizer, args.device, args.max_steps, args.batch_size, args.log_interval)
+    train_steps(model, train_ds, optimizer, args.device, args.max_steps, args.batch_size, args.log_interval,
+                args.grad_accum_steps, args.dtype)
     elapsed = time.time() - t0
 
     print(f"\ntraining took {elapsed:.1f}s for {args.max_steps} steps ({elapsed / args.max_steps:.3f}s/step)")

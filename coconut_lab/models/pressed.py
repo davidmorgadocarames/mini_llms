@@ -119,7 +119,8 @@ def train_drafter(args: argparse.Namespace) -> None:
     if args.device == "cuda":
         torch.cuda.reset_peak_memory_stats()
     t0 = time.time()
-    gpt_train_steps(model, train_ds, optimizer, args.device, args.max_steps, args.batch_size, args.log_interval)
+    gpt_train_steps(model, train_ds, optimizer, args.device, args.max_steps, args.batch_size, args.log_interval,
+                     args.grad_accum_steps, args.dtype)
     elapsed = time.time() - t0
     print(f"\ntraining took {elapsed:.1f}s for {args.max_steps} steps ({elapsed / args.max_steps:.3f}s/step)")
     if args.device == "cuda":
@@ -180,7 +181,8 @@ def train_replacer(args: argparse.Namespace) -> None:
     if args.device == "cuda":
         torch.cuda.reset_peak_memory_stats()
     t0 = time.time()
-    gpt_train_steps(model, train_ds, optimizer, args.device, args.max_steps, args.batch_size, args.log_interval)
+    gpt_train_steps(model, train_ds, optimizer, args.device, args.max_steps, args.batch_size, args.log_interval,
+                     args.grad_accum_steps, args.dtype)
     elapsed = time.time() - t0
     print(f"\ntraining took {elapsed:.1f}s for {args.max_steps} steps ({elapsed / args.max_steps:.3f}s/step)")
     if args.device == "cuda":
@@ -209,6 +211,8 @@ def parse_args() -> argparse.Namespace:
         sp.add_argument("--lr", type=float, default=defaults["lr"])
         sp.add_argument("--weight-decay", type=float, default=defaults["weight_decay"])
         sp.add_argument("--log-interval", type=int, default=200)
+        sp.add_argument("--grad-accum-steps", type=int, default=1)
+        sp.add_argument("--dtype", default="bfloat16", choices=["bfloat16", "float16", "float32"])
         sp.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
         sp.add_argument("--out-dir", default=str(CHECKPOINT_DIR))
 
