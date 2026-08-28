@@ -1,4 +1,5 @@
-"""Renders coconut_tui.logo.LARGE_LOGO to a transparent PNG.
+"""Renders block-art ASCII logos (Coconut, and Fase C's Cracked/Sliced/
+Pressed) to transparent PNGs.
 
 Why: the ASCII art relies on Unicode block-element characters that many
 mobile browsers render as generic "tofu" glyphs (confirmed on a real device),
@@ -15,6 +16,7 @@ from pathlib import Path
 import matplotlib
 from PIL import Image, ImageDraw, ImageFont
 
+from coconut_lab.logos import CRACKED_LOGO, PRESSED_LOGO, SLICED_LOGO
 from coconut_tui.logo import LARGE_LOGO
 
 FONT_PATH = os.path.join(
@@ -22,11 +24,18 @@ FONT_PATH = os.path.join(
 )
 FONT_SIZE = 40
 COLOR = (201, 138, 75, 255)  # #c98a4b, matches the app's brown accent
-OUT_PATH = Path(__file__).resolve().parent.parent / "coconut_tui" / "assets" / "logo.png"
+
+ASSETS_DIR = Path(__file__).resolve().parent.parent / "coconut_tui" / "assets"
+LOGOS = {
+    "logo.png": LARGE_LOGO,
+    "cracked_logo.png": CRACKED_LOGO,
+    "sliced_logo.png": SLICED_LOGO,
+    "pressed_logo.png": PRESSED_LOGO,
+}
 
 
-def render() -> None:
-    lines = LARGE_LOGO.splitlines()
+def render_one(text: str, out_path: Path) -> None:
+    lines = text.splitlines()
     font = ImageFont.truetype(FONT_PATH, FONT_SIZE)
 
     cell_w = font.getlength("█")
@@ -57,9 +66,14 @@ def render() -> None:
         bottom = min(img_h, bottom + pad)
         img = img.crop((left, top, right, bottom))
 
-    OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    img.save(OUT_PATH)
-    print(f"saved {OUT_PATH} ({img.width}x{img.height})")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    img.save(out_path)
+    print(f"saved {out_path} ({img.width}x{img.height})")
+
+
+def render() -> None:
+    for filename, text in LOGOS.items():
+        render_one(text, ASSETS_DIR / filename)
 
 
 if __name__ == "__main__":
