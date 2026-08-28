@@ -15,14 +15,21 @@ Usage:
 
 import argparse
 import dataclasses
+import sys
 import time
 from pathlib import Path
+
+# Generated text can contain arbitrary Unicode (including odd byte-level BPE
+# artifacts); stdout defaults to the console's codepage when redirected to a
+# file on Windows, which can't represent all of it and crashes the whole
+# script -- reconfigure to UTF-8 with lossy fallback instead of failing.
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 import torch
 import torch.nn.functional as F
 from huggingface_hub import hf_hub_download
 
-from coconut_lab.data.loader import InstructionDataset
+from coconut_lab.data.loader import ConversationDataset, InstructionDataset
 from coconut_lab.data.prepare_instructions import ARTIFACTS_DIR, load_jsonl
 from mini_llm.model import GPT
 from mini_llm.tokenizer import BPETokenizer
@@ -127,12 +134,24 @@ def main() -> None:
     config = model.config
     print(f"base model: {model.num_parameters():,} parameters, config={config}")
 
-    train_examples = load_jsonl(ARTIFACTS_DIR / "alpaca_train.jsonl")
-    val_examples = load_jsonl(ARTIFACTS_DIR / "alpaca_val.jsonl")
-    train_ds = InstructionDataset(train_examples, tokenizer, block_size=config.block_size)
-    val_ds = InstructionDataset(val_examples, tokenizer, block_size=config.block_size)
-    print(f"train: {len(train_ds)}/{len(train_examples)} examples fit block_size={config.block_size}")
-    print(f"val:   {len(val_ds)}/{len(val_examples)} examples fit block_size={config.block_size}")
+    alpaca_train = load_jsonl(ARTIFACTS_DIR / "alpaca_train.jsonl")
+    alpaca_val = load_jsonl(ARTIFACTS_DIR / "alpaca_val.jsonl")
+    instruction_train_ds = InstructionDataset(alpaca_train, tokenizer, block_size=config.block_size)
+    instruction_val_ds = InstructionDataset(alpaca_val, tokenizer, block_size=config.block_size)
+    print(f"alpaca train: {len(instruction_train_ds)}/{len(alpaca_train)} examples fit block_size={config.block_size}")
+    print(f"alpaca val:   {len(instruction_val_ds)}/{len(alpaca_val)} examples fit block_size={config.block_size}")
+
+    # prepare_conversations.py writes into the same coconut_lab/data/artifacts/ dir
+    oasst1_train = load_jsonl(ARTIFACTS_DIR / "oasst1_train.jsonl")
+    oasst1_val = load_jsonl(ARTIFACTS_DIR / "oasst1_val.jsonl")
+    conversation_train_ds = ConversationDataset(oasst1_train, tokenizer, block_size=config.block_size)
+    conversation_val_ds = ConversationDataset(oasst1_val, tokenizer, block_size=config.block_size)
+    print(f"oasst1 train: {len(conversation_train_ds)}/{len(oasst1_train)} conversations fit block_size={config.block_size}")
+    print(f"oasst1 val:   {len(conversation_val_ds)}/{len(oasst1_val)} conversations fit block_size={config.block_size}")
+
+    train_ds = torch.utils.data.ConcatDataset([instruction_train_ds, conversation_train_ds])
+    val_ds = torch.utils.data.ConcatDataset([instruction_val_ds, conversation_val_ds])
+    print(f"combined train: {len(train_ds)} examples | combined val: {len(val_ds)} examples")
 
     optimizer = build_optimizer(model, args.lr, args.weight_decay)
 
@@ -160,18 +179,20 @@ def main() -> None:
         model.train()
     print(f"val loss: {val_loss / max(n_batches, 1):.4f}")
 
+    # Save before printing sample generations -- generated text is
+    # unpredictable and must never be able to cost us the trained weights.
+    out_dir = Path(args.out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    torch.save({"model": model.state_dict(), "config": dataclasses.asdict(config), "max_steps": args.max_steps},
+               out_dir / "cracked.pt")
+    print(f"done. checkpoint saved to {out_dir / 'cracked.pt'}")
+
     print("\nsample generations:")
     for prompt in SAMPLE_PROMPTS:
         response = generate_response(model, tokenizer, prompt, args.device)
         instruction = prompt.split("### Instruction:\n", 1)[1].split("\n\n### Response:")[0]
         print(f"  instruction: {instruction!r}")
         print(f"  response: {response!r}\n")
-
-    out_dir = Path(args.out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    torch.save({"model": model.state_dict(), "config": dataclasses.asdict(config), "max_steps": args.max_steps},
-               out_dir / "cracked.pt")
-    print(f"done. checkpoint saved to {out_dir / 'cracked.pt'}")
 
 
 if __name__ == "__main__":
