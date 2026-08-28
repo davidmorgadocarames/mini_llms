@@ -1,0 +1,65 @@
+{
+  "per_fold": {
+    "0": {
+      "cracked": 0.03,
+      "sliced": 0.03,
+      "pressed": 0.01
+    },
+    "1": {
+      "cracked": 0.02,
+      "sliced": 0.02,
+      "pressed": 0.01
+    },
+    "2": {
+      "cracked": 0.0,
+      "sliced": 0.01,
+      "pressed": 0.01
+    },
+    "3": {
+      "cracked": 0.02,
+      "sliced": 0.0,
+      "pressed": 0.03
+    },
+    "4": {
+      "cracked": 0.01,
+      "sliced": 0.0,
+      "pressed": 0.03
+    }
+  },
+  "summary": {
+    "cracked": {
+      "fold_accuracies": [
+        0.03,
+        0.02,
+        0.0,
+        0.02,
+        0.01
+      ],
+      "mean": 0.016,
+      "std": 0.010198039027185569
+    },
+    "sliced": {
+      "fold_accuracies": [
+        0.03,
+        0.02,
+        0.01,
+        0.0,
+        0.0
+      ],
+      "mean": 0.012,
+      "std": 0.0116619037896906
+    },
+    "pressed": {
+      "fold_accuracies": [
+        0.01,
+        0.01,
+        0.01,
+        0.03,
+        0.03
+      ],
+      "mean": 0.018,
+      "std": 0.009797958971132711
+    }
+  },
+  "k": 5
+}
