@@ -41,6 +41,36 @@ def apply_rope(x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor) -> torch.T
     return x * cos + _rotate_half(x) * sin
 
 
+class KVCache:
+    """Accumulated key/value tensors per layer, for incremental (one new
+    token at a time) autoregressive generation -- avoids recomputing
+    attention over the whole growing sequence at every decoding step, the
+    classic quadratic-vs-linear generation cost fix.
+
+    Stores k/v *before* GroupedQueryAttention's repeat_interleave (i.e. at
+    n_kv_head, not n_head) -- that's the whole point of GQA: a smaller
+    cache. Purely additive to the model: every forward()/Block.forward()
+    call defaults kv_cache=None, which reproduces the exact prior behavior
+    (no cache, full recompute) bit-for-bit -- existing callers (training,
+    and any code not yet updated to pass a cache) are unaffected."""
+
+    def __init__(self, n_layer: int):
+        self.k: list[torch.Tensor | None] = [None] * n_layer
+        self.v: list[torch.Tensor | None] = [None] * n_layer
+
+    @property
+    def length(self) -> int:
+        return 0 if self.k[0] is None else self.k[0].size(2)
+
+    def update(self, layer_idx: int, k: torch.Tensor, v: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        if self.k[layer_idx] is None:
+            self.k[layer_idx], self.v[layer_idx] = k, v
+        else:
+            self.k[layer_idx] = torch.cat([self.k[layer_idx], k], dim=2)
+            self.v[layer_idx] = torch.cat([self.v[layer_idx], v], dim=2)
+        return self.k[layer_idx], self.v[layer_idx]
+
+
 class GroupedQueryAttention(nn.Module):
     """Causal self-attention with Grouped Query Attention (Ainslie et al. 2023):
     fewer key/value heads than query heads, shared across groups of query heads,
@@ -59,23 +89,36 @@ class GroupedQueryAttention(nn.Module):
         self.o_proj = nn.Linear(config.n_head * self.head_dim, config.n_embd, bias=False)
         self.dropout = config.dropout
 
-    def forward(self, x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor,
+                kv_cache: KVCache | None = None, layer_idx: int | None = None) -> torch.Tensor:
         B, T, C = x.shape
 
         q = self.q_proj(x).view(B, T, self.n_head, self.head_dim).transpose(1, 2)
         k = self.k_proj(x).view(B, T, self.n_kv_head, self.head_dim).transpose(1, 2)
         v = self.v_proj(x).view(B, T, self.n_kv_head, self.head_dim).transpose(1, 2)
 
+        # cos/sin already correspond to this chunk's absolute positions
+        # (transformer.py slices them starting at kv_cache.length when a
+        # cache is in use), so RoPE stays correct whether this is a full
+        # from-scratch pass or a single cached decoding step.
         q = apply_rope(q, cos, sin)
         k = apply_rope(k, cos, sin)
+
+        if kv_cache is not None:
+            k, v = kv_cache.update(layer_idx, k, v)
 
         if self.n_rep > 1:
             k = k.repeat_interleave(self.n_rep, dim=1)
             v = v.repeat_interleave(self.n_rep, dim=1)
 
+        # Only need an explicit causal mask when query and key positions
+        # line up 1:1 (a full/prefill pass, or no cache at all) -- a single
+        # new token (T_q=1) attending to the full cached history (T_k>1)
+        # has nothing "future" to mask by construction.
+        is_causal = q.size(2) == k.size(2)
         out = F.scaled_dot_product_attention(
             q, k, v,
-            is_causal=True,
+            is_causal=is_causal,
             dropout_p=self.dropout if self.training else 0.0,
         )
         out = out.transpose(1, 2).contiguous().view(B, T, C)
@@ -109,7 +152,8 @@ class Block(nn.Module):
         self.ffn_norm = RMSNorm(config.n_embd, eps=config.norm_eps)
         self.ffn = SwiGLU(config)
 
-    def forward(self, x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor) -> torch.Tensor:
-        x = x + self.attn(self.attn_norm(x), cos, sin)
+    def forward(self, x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor,
+                kv_cache: KVCache | None = None, layer_idx: int | None = None) -> torch.Tensor:
+        x = x + self.attn(self.attn_norm(x), cos, sin, kv_cache, layer_idx)
         x = x + self.ffn(self.ffn_norm(x))
         return x
