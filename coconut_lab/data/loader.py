@@ -114,3 +114,48 @@ class ConversationDataset(Dataset):
         x, y = seq[:-1], seq[1:]
         y_mask = mask[1:]
         return x, y, y_mask
+
+
+class Seq2SeqDataset(Dataset):
+    """Fase C.4 ("Sliced"): generic encoder/decoder dataset over {"src",
+    "tgt"} text pairs -- unlike InstructionDataset/ConversationDataset, the
+    decoder here only ever sees the target text (never the prompt/history,
+    that's the encoder's job via cross-attention), so no loss masking is
+    needed: every decoder position is a real prediction target.
+
+    Examples whose src or tgt don't fit their block size budget are dropped
+    outright, not truncated -- truncating either half would silently change
+    the training signal (a cut-off instruction, or a response missing its
+    ending) rather than just training on less data.
+
+    EOT_TOKEN's id doubles as pad, bos, *and* eos here (Fase A's BPE vocab
+    has no dedicated tokens for any of those) -- position encoding and
+    context are what let the model tell "start of response" apart from
+    "response is over" apart from "padding", not the token id alone."""
+
+    def __init__(self, examples: list[dict], tokenizer: BPETokenizer, src_block_size: int, tgt_block_size: int):
+        self.tokenizer = tokenizer
+        self.src_block_size = src_block_size
+        self.tgt_block_size = tgt_block_size
+        self.pad_id = tokenizer.encode(EOT_TOKEN)[0]
+
+        self.examples: list[tuple[list[int], list[int]]] = []
+        for ex in examples:
+            src_ids = tokenizer.encode(ex["src"])
+            tgt_ids = tokenizer.encode(ex["tgt"])
+            if len(src_ids) > src_block_size or len(tgt_ids) + 1 > tgt_block_size:
+                continue
+            self.examples.append((src_ids, tgt_ids))
+
+    def __len__(self) -> int:
+        return len(self.examples)
+
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        src_ids, tgt_ids = self.examples[idx]
+        src = src_ids + [self.pad_id] * (self.src_block_size - len(src_ids))
+        tgt = [self.pad_id] + tgt_ids + [self.pad_id]  # bos + text + eos
+        tgt = tgt + [self.pad_id] * (self.tgt_block_size + 1 - len(tgt))
+
+        src_t = torch.tensor(src, dtype=torch.long)
+        tgt_t = torch.tensor(tgt, dtype=torch.long)
+        return src_t, tgt_t[:-1], tgt_t[1:]
