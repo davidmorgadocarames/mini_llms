@@ -57,6 +57,17 @@ def format_example(question: str, answer_text: str) -> dict:
     }
 
 
+def gsm8k_to_instructions(examples: list[dict]) -> list[dict]:
+    """Reframes GSM8K examples as {"prompt", "response"} instruction pairs
+    (same shape InstructionDataset expects) so a decoder-only or
+    encoder-decoder model can be fine-tuned on GSM8K reasoning the same way
+    it's fine-tuned on Alpaca/oasst1 -- needed so Cracked and Sliced (not
+    just Pressed's drafter) actually see GSM8K-formatted problems during
+    training before C.6 asks them to solve GSM8K test problems; otherwise
+    the comparison wouldn't be apples-to-apples."""
+    return [{"prompt": f"Question: {ex['question']}\n\nAnswer: ", "response": ex["answer_text"]} for ex in examples]
+
+
 def _write_jsonl(examples: list[dict], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as f:

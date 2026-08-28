@@ -44,6 +44,7 @@ from coconut_lab.data.prepare_instructions import ARTIFACTS_DIR as INSTR_DIR
 from coconut_lab.data.prepare_instructions import load_jsonl as load_instr_jsonl
 from coconut_lab.data.prepare_pressed import build_locator_examples, build_replacer_examples
 from coconut_lab.data.prepare_reasoning import ARTIFACTS_DIR as GSM8K_DIR
+from coconut_lab.data.prepare_reasoning import gsm8k_to_instructions
 from coconut_lab.data.prepare_reasoning import load_jsonl as load_gsm8k_jsonl
 from coconut_lab.models.cracked import build_optimizer as build_gpt_optimizer
 from coconut_lab.models.cracked import generate_response, masked_loss
@@ -71,10 +72,6 @@ def load_tokenizer() -> BPETokenizer:
     vocab_path = hf_hub_download(HF_REPO, "tokenizer/vocab.json")
     merges_path = hf_hub_download(HF_REPO, "tokenizer/merges.txt")
     return BPETokenizer(vocab_path, merges_path)
-
-
-def gsm8k_to_instructions(examples: list[dict]) -> list[dict]:
-    return [{"prompt": f"Question: {ex['question']}\n\nAnswer: ", "response": ex["answer_text"]} for ex in examples]
 
 
 def _drafter_datasets(tokenizer: BPETokenizer, block_size: int):
