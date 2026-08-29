@@ -28,7 +28,7 @@ from huggingface_hub import hf_hub_download
 
 import streamlit as st
 from coconut_lab.data.prepare_conversations import ASSISTANT_MARKER, format_turns
-from coconut_lab.logos import CRACKED_LOGO, PRESSED_LOGO, SLICED_LOGO
+from coconut_lab.logos import CRACKED_WORDMARK, PRESSED_WORDMARK, SLICED_WORDMARK
 from coconut_lab.models import cracked as cracked_mod
 from coconut_lab.models import sliced as sliced_mod
 from coconut_lab.models.pressed_loop import reduce_with_pressed
@@ -48,20 +48,23 @@ DRAFTER_BLOCK_SIZE = 512  # matches coconut_lab.models.pressed.DRAFTER_BLOCK_SIZ
 MODELS = {
     "cracked": {
         "label": "Cracked",
-        "logo": CRACKED_LOGO,
-        "png": "cracked_logo.png",
+        "wordmark": CRACKED_WORDMARK,
+        "gif": "cracked.gif",
+        "wordmark_png": "cracked_wordmark.png",
         "desc": "Decoder-only (Coconut afinado sobre instrucciones). El baseline.",
     },
     "sliced": {
         "label": "Sliced",
-        "logo": SLICED_LOGO,
-        "png": "sliced_logo.png",
+        "wordmark": SLICED_WORDMARK,
+        "gif": "sliced.gif",
+        "wordmark_png": "sliced_wordmark.png",
         "desc": "Encoder-decoder entrenado desde cero, sin preentrenamiento previo.",
     },
     "pressed": {
         "label": "Pressed",
-        "logo": PRESSED_LOGO,
-        "png": "pressed_logo.png",
+        "wordmark": PRESSED_WORDMARK,
+        "gif": "pressed.gif",
+        "wordmark_png": "pressed_wordmark.png",
         "desc": "Looped Locate-and-Replace: redacta un borrador y corrige su aritmetica.",
     },
 }
@@ -104,12 +107,23 @@ footer {{ visibility: hidden; }}
     .mobile-only {{ display: none !important; }}
     .desktop-only {{ display: block !important; }}
 }}
-.coconut-banner-img {{ max-width: 320px; width: 100%; height: auto; margin: 0 0 0.75rem 0; }}
-.coconut-logo-text {{
-    font-size: 0.55rem; line-height: 1.15; white-space: pre; overflow-x: auto;
-    color: #c98a4b; margin: 0 0 0.75rem 0; font-family: "CoconutLogoFont", monospace;
+/* GIF illustration + wordmark side by side, vertically centered; wraps to
+   two rows on narrow screens so the wordmark never gets squashed. */
+.model-banner {{
+    display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+    margin: 0 0 0.75rem 0;
 }}
-@media (min-width: 1000px) {{ .coconut-logo-text {{ font-size: 0.68rem; }} }}
+/* Background already knocked out in the asset itself (see
+   scripts/make_gifs_transparent.py) -- the source GIFs shipped with an
+   opaque near-black rectangle that showed against the page. */
+.model-banner-gif {{ width: 130px; height: auto; flex: 0 0 auto; }}
+@media (min-width: 768px) {{ .model-banner-gif {{ width: 180px; }} }}
+.model-wordmark-text {{
+    font-size: 0.5rem; line-height: 1.15; white-space: pre; overflow-x: auto;
+    color: #c98a4b; margin: 0; font-family: "CoconutLogoFont", monospace;
+}}
+@media (min-width: 1000px) {{ .model-wordmark-text {{ font-size: 0.62rem; }} }}
+.model-wordmark-img {{ max-width: 200px; width: 55%; height: auto; }}
 .coconut-caption {{ color: #7b8790; font-size: 0.85rem; margin-bottom: 0.75rem; }}
 .coconut-info {{
     color: #7b8790; border-left: 2px solid #8a6238; padding: 0.4rem 0.75rem;
@@ -235,13 +249,22 @@ if st.session_state.fasec_clear_input:
 
 active = MODELS[st.session_state.fasec_model]
 
-_logo_b64 = base64.b64encode((ASSETS_DIR / active["png"]).read_bytes()).decode("ascii")
+# Banner: animated GIF of the illustration, with the model's block-letter
+# wordmark beside it. The wordmark is live ASCII text on desktop and a
+# pre-rendered PNG on mobile -- same reason the Fase A/B banners do this
+# (block-drawing glyphs render as "tofu" on many mobile browsers).
+_gif_b64 = base64.b64encode((ASSETS_DIR / active["gif"]).read_bytes()).decode("ascii")
+_wordmark_b64 = base64.b64encode((ASSETS_DIR / active["wordmark_png"]).read_bytes()).decode("ascii")
+_wordmark_lines_html = "<br>".join(html.escape(line) for line in active["wordmark"].splitlines())
 st.markdown(
-    f'<img class="coconut-banner-img mobile-only" src="data:image/png;base64,{_logo_b64}" alt="{active["label"]}">',
+    '<div class="model-banner">'
+    f'<img class="model-banner-gif" src="data:image/gif;base64,{_gif_b64}" alt="{active["label"]}">'
+    f'<div class="model-wordmark-text desktop-only">{_wordmark_lines_html}</div>'
+    f'<img class="model-wordmark-img mobile-only" src="data:image/png;base64,{_wordmark_b64}" '
+    f'alt="{active["label"]}">'
+    "</div>",
     unsafe_allow_html=True,
 )
-_logo_lines_html = "<br>".join(html.escape(line) for line in active["logo"].splitlines())
-st.markdown(f'<div class="coconut-logo-text desktop-only">{_logo_lines_html}</div>', unsafe_allow_html=True)
 st.markdown(
     f'<div class="coconut-caption">{active["label"]} &middot; {active["desc"]} &middot; '
     f"corriendo en <code>{DEVICE}</code></div>",

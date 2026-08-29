@@ -16,7 +16,14 @@ from pathlib import Path
 import matplotlib
 from PIL import Image, ImageDraw, ImageFont
 
-from coconut_lab.logos import CRACKED_LOGO, PRESSED_LOGO, SLICED_LOGO
+from coconut_lab.logos import (
+    CRACKED_LOGO,
+    CRACKED_WORDMARK,
+    PRESSED_LOGO,
+    PRESSED_WORDMARK,
+    SLICED_LOGO,
+    SLICED_WORDMARK,
+)
 from coconut_tui.logo import LARGE_LOGO
 
 FONT_PATH = os.path.join(
@@ -31,6 +38,12 @@ LOGOS = {
     "cracked_logo.png": CRACKED_LOGO,
     "sliced_logo.png": SLICED_LOGO,
     "pressed_logo.png": PRESSED_LOGO,
+    # Wordmark-only renders: the Fase C demo pairs an animated GIF of the
+    # illustration with the live ASCII wordmark beside it, and falls back to
+    # these on mobile for the same tofu-glyph reason as the full logos.
+    "cracked_wordmark.png": CRACKED_WORDMARK,
+    "sliced_wordmark.png": SLICED_WORDMARK,
+    "pressed_wordmark.png": PRESSED_WORDMARK,
 }
 
 
