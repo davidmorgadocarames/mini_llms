@@ -134,7 +134,20 @@ footer {{ visibility: hidden; }}
 .st-key-output-panel {{
     background: #12171a !important; border: 1px solid #23292c !important; border-radius: 10px !important;
 }}
-@media (max-width: 767px) {{ .st-key-output-panel {{ max-height: 380px !important; }} }}
+/* Shrink the conversation box on phones. Streamlit wraps a height-ed
+   container in a stLayoutWrapper that keeps the original Python-side
+   height, so resizing only the panel leaves the wrapper's leftover space
+   as a dead gap above the prompt bar (confirmed on a real phone: 480px
+   wrapper vs 360px panel = ~120px of nothing). The wrapper is a flex item
+   with `flex: 0 0 480px`, and in a column flex container flex-basis wins
+   over height -- so the flex shorthand is what actually has to change. */
+@media (max-width: 767px) {{
+    .st-key-output-panel {{ height: 360px !important; max-height: 360px !important; }}
+    div[data-testid="stLayoutWrapper"]:has(> .st-key-output-panel) {{
+        flex: 0 0 360px !important;
+        height: 360px !important;
+    }}
+}}
 
 /* Chat bubbles, ChatGPT/Gemini-style: user right-aligned (green-tinted),
    assistant left-aligned (dark panel), instead of a plain terminal block. */
@@ -165,6 +178,28 @@ div.stButton > button {{
     border-radius: 8px; font-family: inherit;
 }}
 div.stButton > button:hover {{ border-color: #8a6238; color: #c98a4b; }}
+
+/* Tuck the prompt row right under the conversation box, and keep caret +
+   input + send button on one line. Streamlit stacks columns vertically
+   below ~640px by default, which on a phone pushed the send button under
+   the input -- force the row to stay horizontal instead. */
+.st-key-prompt-row {{ margin-top: -0.75rem; }}
+.st-key-prompt-row div[data-testid="stHorizontalBlock"] {{
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+}}
+.st-key-prompt-row div[data-testid="stColumn"] {{
+    min-width: 0 !important;
+}}
+.st-key-prompt-row div.stButton > button {{
+    background: #1f6f4a; color: #eafff2; border: 1px solid #2a8a5e;
+    border-radius: 999px; white-space: nowrap; padding: 0.35rem 1rem;
+}}
+.st-key-prompt-row div.stButton > button:hover {{
+    background: #2a8a5e; border-color: #6fcf97; color: #ffffff;
+}}
 </style>
 """
 st.markdown(PAGE_CSS, unsafe_allow_html=True)
@@ -315,16 +350,21 @@ with st.container(height=OUTPUT_BOX_HEIGHT, border=True, key="output-panel"):
     output_box = st.empty()
     output_box.markdown(render_conversation(st.session_state.fasec_history), unsafe_allow_html=True)
 
-caret_col, input_col = st.columns([0.03, 0.97])
-with caret_col:
-    st.markdown('<div class="prompt-caret">&gt;</div>', unsafe_allow_html=True)
-with input_col:
-    prompt = st.text_input(
-        "Mensaje", key="fasec_prompt", placeholder="escribe algo y pulsa Enter",
-        label_visibility="collapsed",
-    )
+with st.container(key="prompt-row"):
+    caret_col, input_col, send_col = st.columns([0.05, 0.78, 0.17])
+    with caret_col:
+        st.markdown('<div class="prompt-caret">&gt;</div>', unsafe_allow_html=True)
+    with input_col:
+        prompt = st.text_input(
+            "Mensaje", key="fasec_prompt", placeholder="escribe algo...",
+            label_visibility="collapsed",
+        )
+    with send_col:
+        send_clicked = st.button("Enviar", use_container_width=True)
 
-if prompt.strip() and prompt != st.session_state.fasec_last_processed:
+# Enter still submits (the text_input value changing is enough); the button
+# is mainly for phones, where there's no obvious Enter key affordance.
+if prompt.strip() and (send_clicked or prompt != st.session_state.fasec_last_processed):
     st.session_state.fasec_history.append({"role": "user", "text": prompt})
     output_box.markdown(render_conversation(st.session_state.fasec_history, cursor_text=""),
                          unsafe_allow_html=True)
