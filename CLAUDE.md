@@ -72,6 +72,15 @@ Proyecto de portfolio: construir un mini-LLM desde cero en dos fases, subido a G
   arreglado, Sliced reentrenado desde cero, y los puntos de C.6 afectados
   re-ejecutados con el checkpoint corregido — mismo criterio de verificar antes de
   concluir que en Fases A y B.
+- **[EN CURSO] Fase D — por qué los chatbots responden mal**: investigación abierta
+  sobre cómo mejorar las respuestas de Cracked/Sliced/Pressed (déficit de datos vs.
+  Chinchilla, dominio de WikiText-103 vs. conversación, falta de preentrenamiento en
+  Sliced/drafter de Pressed). Plan detallado, en pausa y sin aprobar, en
+  `C:\Users\Gatrix\.claude\plans\vamos-a-hacer-un-soft-finch.md`. Estado completo de la
+  sesión, incluido el setup local del modelo de referencia
+  [Ashx098/Mini-LLM](https://github.com/Ashx098/Mini-LLM) para comparar, en
+  `CONTEXTO_SESION.md` (no forma parte de la documentación del proyecto, es un volcado
+  de contexto para retomar el trabajo).
 
 ## Entorno
 
