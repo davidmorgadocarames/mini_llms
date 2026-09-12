@@ -1,0 +1,52 @@
+{
+  "rows": [
+    {
+      "model": "Cracked-D",
+      "topology": "decoder-only (causal)",
+      "layers": "8",
+      "d_model": 512,
+      "n_head": 8,
+      "n_kv_head": 2,
+      "ffn_dim": 1376,
+      "context": 1024,
+      "params": 26354176,
+      "embedding_params": 4194304,
+      "layers_per_token": 8,
+      "t5_row": "decoder-only prefix LM (L layers): P params, M FLOPs",
+      "params_vs_cracked_pct": 0.0
+    },
+    {
+      "model": "Cracked-D-full",
+      "topology": "decoder-only (causal), control",
+      "layers": "8",
+      "d_model": 512,
+      "n_head": 8,
+      "n_kv_head": 2,
+      "ffn_dim": 1376,
+      "context": 1024,
+      "params": 26354176,
+      "embedding_params": 4194304,
+      "layers_per_token": 8,
+      "t5_row": "same architecture as Cracked-D; only the pretraining loss differs",
+      "params_vs_cracked_pct": 0.0
+    },
+    {
+      "model": "Sliced-D",
+      "topology": "encoder-decoder (bidirectional enc + causal dec + cross-attn)",
+      "layers": "3 enc + 4 dec",
+      "d_model": 512,
+      "n_head": 8,
+      "n_kv_head": 2,
+      "ffn_dim": 1376,
+      "context": 1024,
+      "params": 26208256,
+      "embedding_params": 4194304,
+      "layers_per_token": 4,
+      "prefix_to_prediction_path": 7,
+      "t5_row": "encoder-decoder L/2+L/2-style: P params, ~M/2 FLOPs",
+      "params_vs_cracked_pct": -0.55
+    }
+  ],
+  "tolerance_pct": 5.0,
+  "note": "d_model/heads/FFN are held identical across architectures and only the layer allocation differs, following T5 (Raffel et al. 2020) and Wang et al. (2022), which keep width fixed and vary depth rather than shrinking width to force a parameter match."
+}
