@@ -318,6 +318,7 @@ def _train(args) -> dict:
         tokens_done = step * args.batch_size
         tok_s = (tokens_done - tokens_at_segment_start) / max(1e-9, time.time() - t0)
         status.update(step, tokens_done, train_loss=running_loss, tokens_per_sec=tok_s)
+        pbar.set_postfix(loss=f"{running_loss:.3f}", refresh=False)
         eval_interval = getattr(args, "eval_interval", 0)
         is_eval_step = bool(eval_interval and step % eval_interval == 0)
         val = None

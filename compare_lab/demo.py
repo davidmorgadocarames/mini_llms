@@ -31,6 +31,35 @@ def load_from_local(ckpt_path: str | Path, tokenizer_dir: str | Path,
     return model, tok
 
 
+_CKPT_DIR = Path(__file__).resolve().parent / "checkpoints" / "cracked"
+# Prefer the slim, inference-only export: same weights, but without AdamW's two
+# moment tensors it is 100MB instead of 301MB, which is a third of the download
+# and ~200MB less peak memory on Streamlit Cloud (see export_for_demo.py).
+LOCAL_CKPT_CANDIDATES = (_CKPT_DIR / "finetune_slim.pt", _CKPT_DIR / "finetune_final.pt")
+LOCAL_TOKENIZER = Path(__file__).resolve().parent / "data" / "artifacts" / "tokenizer"
+
+
+def _local_checkpoint() -> Path | None:
+    return next((p for p in LOCAL_CKPT_CANDIDATES if p.exists()), None)
+
+
+def load_model(device: str | None = None) -> tuple[GPT, Tokenizer, str]:
+    """Load Cracked-D, preferring a local checkpoint over the Hub.
+
+    On the training machine the weights are already on disk, so downloading
+    300MB again would be wasteful -- and before the first upload it is the only
+    way to try the demo at all. Deployed on Streamlit Cloud there is no local
+    checkpoint, so it falls through to the Hub, which is the normal path there."""
+    import torch as _torch
+
+    device = device or ("cuda" if _torch.cuda.is_available() else "cpu")
+    local = _local_checkpoint()
+    if local is not None and (LOCAL_TOKENIZER / "vocab.json").exists():
+        model, tok = load_from_local(local, LOCAL_TOKENIZER, device)
+        return model, tok, device
+    return load_from_hf(device=device)
+
+
 def load_from_hf(repo: str = HF_REPO, device: str | None = None) -> tuple[GPT, Tokenizer, str]:
     from huggingface_hub import hf_hub_download
 

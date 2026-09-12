@@ -292,3 +292,49 @@ def test_checkpoint_interval_bounds_what_a_hard_failure_costs():
     any unplanned stop, so it should be small enough to be cheap to lose."""
     from compare_lab import config
     assert config.CKPT_INTERVAL_MIN <= 5.0
+
+
+def test_empty_history_never_overwrites_an_existing_curve(tmp_path):
+    """A run with nothing to plot must leave the committed curve alone.
+
+    This happened for real: _save_curves wrote the .json before checking for an
+    empty history, so any run that logged no points (two resume tests that never
+    redirected RESULTS_DIR) replaced the real pretrain curve with "[]" and left a
+    stale .png beside it. The write succeeded, so nothing complained -- the data
+    was only recoverable because checkpoints carry the history too."""
+    import json
+
+    base = tmp_path / "pretrain_loss_cracked"
+    real = [{"step": 20, "train_loss": 8.19, "val_loss": None, "tokens_per_sec": 52000.0},
+            {"step": 40, "train_loss": 6.02, "val_loss": 5.9, "tokens_per_sec": 53000.0}]
+    PT._save_curves(base, real, "pretrain cracked")
+    assert json.loads(base.with_suffix(".json").read_text()) == real
+
+    PT._save_curves(base, [], "pretrain cracked")
+    assert json.loads(base.with_suffix(".json").read_text()) == real, \
+        "an empty run wiped the curve data"
+
+
+def test_a_curve_can_be_rebuilt_from_a_checkpoints_history(tmp_path, monkeypatch):
+    """The recovery path for the above: the history inside a checkpoint is a
+    second copy of the curve, so the deliverable can be regenerated without
+    re-running the training."""
+    import json
+
+    from compare_lab.train import regen_curves
+
+    history = [{"step": 20, "train_loss": 8.19, "val_loss": None, "tokens_per_sec": 52000.0},
+               {"step": 40, "train_loss": 6.02, "val_loss": 5.9, "tokens_per_sec": 53000.0}]
+    ckpt_dir = tmp_path / "ckpt" / "cracked"
+    ckpt_dir.mkdir(parents=True)
+    torch.save({"model": {}, "step": 40, "history": history},
+               ckpt_dir / "pretrain_final.pt")
+
+    monkeypatch.setattr(regen_curves, "CHECKPOINT_DIR", tmp_path / "ckpt")
+    monkeypatch.setattr(regen_curves, "RESULTS_DIR", tmp_path / "results")
+    info = regen_curves.regen("cracked", "pretrain")
+
+    assert info["points"] == 2 and info["last_step"] == 40
+    rebuilt = json.loads((tmp_path / "results" / "pretrain_loss_cracked.json").read_text())
+    assert rebuilt == history
+    assert (tmp_path / "results" / "pretrain_loss_cracked.png").exists()

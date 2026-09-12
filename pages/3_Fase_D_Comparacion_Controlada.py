@@ -20,7 +20,7 @@ from pathlib import Path
 
 import streamlit as st
 
-from compare_lab.demo import load_from_hf, chat
+from compare_lab.demo import load_model, chat
 from coconut_lab.logos import CRACKED_WORDMARK
 
 ASSETS_DIR = Path(__file__).resolve().parent.parent / "coconut_tui" / "assets"
@@ -130,9 +130,10 @@ div.stButton > button:hover {{ border-color: #8a6238; color: #c98a4b; }}
 st.markdown(PAGE_CSS, unsafe_allow_html=True)
 
 
-@st.cache_resource(show_spinner="Descargando Cracked-D (solo la primera vez)...")
+@st.cache_resource(show_spinner="Cargando Cracked-D (solo la primera vez)...")
 def get_model():
-    return load_from_hf()
+    # local checkpoint if present, otherwise the Hub (see compare_lab.demo)
+    return load_model()
 
 
 def _bubble(role: str, text: str) -> str:

@@ -46,3 +46,24 @@ def tiny_bins(tmp_path_factory):
     plan = build_plan(len(train_ids), block_size=block, batch_size=8, seed=1337)
     save_plan(plan, d / "plan")
     return {"dir": d, "block": block, "n_train": len(train_ids)}
+
+
+@pytest.fixture(autouse=True)
+def _results_dir_is_never_the_real_one(tmp_path, monkeypatch):
+    """Keep every test's curve writes out of compare_lab/eval/results/.
+
+    That directory holds committed deliverables (the loss curves of the real
+    training runs). Two resume tests called pretrain.train() without redirecting
+    RESULTS_DIR, so each `pytest` run overwrote the real pretrain curve .json --
+    silently, because the write succeeded and nothing asserts on it. Redirecting
+    here instead of per-test means a future test cannot reintroduce the leak.
+    Tests that assert on the file still patch RESULTS_DIR themselves; monkeypatch
+    applies their value after this one, so they win.
+    """
+    import sys
+
+    # Only touch modules the suite already imported -- no cost for other phases.
+    for name in ("compare_lab.train.pretrain", "compare_lab.train.finetune"):
+        mod = sys.modules.get(name)
+        if mod is not None and hasattr(mod, "RESULTS_DIR"):
+            monkeypatch.setattr(mod, "RESULTS_DIR", tmp_path / "results")

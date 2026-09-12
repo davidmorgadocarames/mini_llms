@@ -56,12 +56,24 @@ def build(tokens: int, val_tokens: int, block_size: int, batch_size: int, seed: 
     status = StatusWriter(TASK_NAME, "shared", total_steps=1, total_tokens=total_target)
     t0 = time.time()
 
-    if retrain_tokenizer:
-        print("Training tokenizer from streamed sample ...")
+    # Train the tokenizer when asked to, and also whenever it simply isn't there
+    # yet: loading a missing one fails deep inside the `tokenizers` library with
+    # an opaque error, which is what running this module standalone used to do
+    # (the pipeline always passes retrain_tokenizer=True, so only the documented
+    # standalone command hit it).
+    # Require BOTH files: an interrupted tokenizer training leaves a half-written
+    # directory, and a dir with only vocab.json would take the "reuse" branch and
+    # fail on the missing merges.txt with the same opaque error.
+    tokenizer_exists = all((Path(tokenizer_dir) / f).exists()
+                           for f in ("vocab.json", "merges.txt"))
+    if retrain_tokenizer or not tokenizer_exists:
+        why = "as requested" if retrain_tokenizer else f"({tokenizer_dir} has none yet)"
+        print(f"Training tokenizer from streamed sample {why} ...")
         status.update(0, 0, force=True)
         tok = train_tokenizer(_tokenizer_text_sample(tokenizer_docs, seed),
                               vocab_size=vocab_size, out_dir=tokenizer_dir)
     else:
+        print(f"Reusing the tokenizer in {tokenizer_dir}")
         tok = Tokenizer.from_dir(tokenizer_dir)
 
     # One mixed stream; val is pulled first, then train continues from it (disjoint).

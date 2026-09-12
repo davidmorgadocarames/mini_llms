@@ -321,6 +321,8 @@ def _train(args) -> dict:
 
             tok_s = (tokens_done - tokens_at_segment_start) / max(1e-9, time.time() - t0)
             status.update(step, tokens_done, train_loss=running_loss, tokens_per_sec=tok_s)
+            # loss and throughput on the bar itself, so the console alone is useful
+            pbar.set_postfix(loss=f"{running_loss:.3f}", tok_s=f"{tok_s/1000:.0f}k", refresh=False)
 
             is_eval_step = bool(args.eval_interval and step % args.eval_interval == 0)
             if step % args.log_interval == 0:
@@ -407,12 +409,18 @@ def _config_dict(arch, model):
 
 def _save_curves(base: Path, history: list[dict], arch: str) -> None:
     base = Path(base)
+    # Never let a run with nothing to plot replace a real curve with "[]". A run
+    # that logged no points (log_interval above its step count, or a resume that
+    # was already at the target) has no information to contribute, and the .json
+    # is a deliverable that has to survive it. This is not hypothetical: an
+    # earlier version wrote first and returned second, so any such run silently
+    # wiped the pretrain curve data while leaving a stale .png next to it.
+    if not history:
+        return
     base.parent.mkdir(parents=True, exist_ok=True)
     # atomic like every other write in this package: the curve json is a
     # deliverable, and a crash mid-write would leave it truncated
     atomic_write_json(base.with_suffix(".json"), history)
-    if not history:
-        return
     try:
         import matplotlib
         matplotlib.use("Agg")

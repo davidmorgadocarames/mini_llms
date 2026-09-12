@@ -92,17 +92,32 @@ def run(arch: str, device: str, pretrain_max_steps: int = 0,
     pipeline_status.update(0, 0, force=True)
     data_dir = Path(DEFAULT_TOKENIZER_DIR).parent
 
+    # Write our own log from Python instead of having the launcher pipe the whole
+    # console through Tee-Object. That pipe used to destroy the tqdm progress bar:
+    # tqdm redraws itself on stderr with carriage returns, and PowerShell turns
+    # each redraw into a separate line (wrapped in an ErrorRecord), so the bar was
+    # invisible for an 8-hour run. Logging here keeps the console clean for tqdm.
+    log_path = task_dir(f"pipeline_{arch}") / "pipeline.log"
+
+    def say(msg: str) -> None:
+        print(msg, flush=True)
+        try:
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}\n")
+        except OSError:
+            pass  # logging must never break the run
+
     def stage(name: str, n: int, fn) -> bool:
         """Runs one stage. Returns False if the pipeline must stop here."""
         if _pipeline_stopped(arch):
             pipeline_status.set_state("paused")
             _write_stage(arch, name, "pending")
-            print(f"[pipeline {arch}] STOP found -- not starting stage {name}")
+            say(f"[pipeline {arch}] STOP found -- not starting stage {name}")
             return False
         pipeline_status.update(n - 1, n - 1, force=True)
         pipeline_status._state["model"] = f"{arch}:{name}"
         _write_stage(arch, name, "running")
-        print(f"\n=== [pipeline {arch}] stage {n}/{len(STAGES)}: {name} ===")
+        say(f"\n=== [pipeline {arch}] stage {n}/{len(STAGES)}: {name} ===")
         t0 = time.time()
         try:
             result = fn()
@@ -111,7 +126,7 @@ def run(arch: str, device: str, pretrain_max_steps: int = 0,
             # since that stage cannot resume mid-way and has to restart).
             _write_stage(arch, name, "pending")
             pipeline_status.set_state("paused")
-            print(f"=== [pipeline {arch}] stage {name} INTERRUPTED -- recorded as pending ===")
+            say(f"=== [pipeline {arch}] stage {name} INTERRUPTED -- recorded as pending ===")
             raise
         except Exception as e:
             # Without this, any failure left stages.json and the pipeline status
@@ -119,7 +134,7 @@ def run(arch: str, device: str, pretrain_max_steps: int = 0,
             # crashed pipeline from a working one.
             _write_stage(arch, name, "error")
             pipeline_status.error(f"{name}: {e!r}")
-            print(f"=== [pipeline {arch}] stage {name} FAILED: {e!r} ===")
+            say(f"=== [pipeline {arch}] stage {name} FAILED: {e!r} ===")
             raise
         elapsed = time.time() - t0
         # A training stage that was paused must NOT be treated as done.
@@ -128,11 +143,11 @@ def run(arch: str, device: str, pretrain_max_steps: int = 0,
             _write_stage(arch, name, "paused")
             pipeline_status.update(n - 1, n - 1, force=True)
             pipeline_status.set_state("paused")
-            print(f"=== [pipeline {arch}] stage {name} PAUSED after {elapsed:.0f}s -- "
-                  f"relaunch the same command to continue it; later stages not started ===")
+            say(f"=== [pipeline {arch}] stage {name} PAUSED after {elapsed:.0f}s -- "
+                f"relaunch the same command to continue it; later stages not started ===")
             return False
         _write_stage(arch, name, "done")
-        print(f"=== [pipeline {arch}] stage {name} done in {elapsed:.0f}s ===")
+        say(f"=== [pipeline {arch}] stage {name} done in {elapsed:.0f}s ===")
         return True
 
     # --- stage 1: shared pretraining sample (tokenizer + bins + prefix-LM plan) ---
@@ -203,7 +218,7 @@ def run(arch: str, device: str, pretrain_max_steps: int = 0,
 
     pipeline_status.update(len(STAGES), len(STAGES), force=True)
     pipeline_status.finished()
-    print(f"\n[pipeline {arch}] ALL STAGES DONE")
+    say(f"\n[pipeline {arch}] ALL STAGES DONE")
     return "finished"
 
 
