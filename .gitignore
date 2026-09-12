@@ -41,3 +41,7 @@ Thumbs.db
 
 # Fase D: rehearsal artifacts from compare_lab/verify (never a real run)
 compare_lab/verify/_run/
+
+# Volcado de contexto de sesion para retomar el trabajo, no documentacion del
+# proyecto: lleva rutas locales y notas internas, y esto es un repo de portfolio.
+CONTEXTO_SESION.md

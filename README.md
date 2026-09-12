@@ -68,9 +68,12 @@ es implementarla de nuevo, sin tocar el resto.
 - 🚀 **[Inferencia real en vivo (Streamlit Community Cloud)](https://minillms-p2qhjk4tkphgwcw4yqfqks.streamlit.app)**
   — el modelo corriendo de verdad en un servidor, cargado desde el checkpoint publicado en
   [HuggingFace](https://huggingface.co/davidmorgado/coconut-mini-llm). Código en
-  [`streamlit_app.py`](streamlit_app.py). La misma app tiene dos páginas más (menú lateral):
-  **Fase B — Depth Lab**, descrita más abajo, y **Fase C — Coconut Interactivo**, con el
-  chat multi-modelo también descrito más abajo.
+  [`streamlit_app.py`](streamlit_app.py). La misma app tiene tres páginas más (menú lateral):
+  **Fase B — Depth Lab** y **Fase C — Coconut Interactivo** (chat multi-modelo), ambas
+  descritas más abajo, y **Fase D — Comparación Controlada**, que enfrenta un
+  decoder-only contra un encoder-decoder igualando datos, tokenizer, número de
+  parámetros y presupuesto de entrenamiento — justo las variables que la comparación
+  de la Fase C no controlaba.
 
 ## Fase B — ¿Por qué los Transformers fallan en razonamiento recursivo profundo?
 

@@ -104,10 +104,11 @@ Proyecto de portfolio: construir un mini-LLM desde cero en dos fases, subido a G
   `compare_lab/train/regen_curves.py`, que reconstruye la curva desde el historial
   que llevan dentro los checkpoints.
 
-  Estado completo de la sesión, incluido el setup local del modelo de referencia
-  [Ashx098/Mini-LLM](https://github.com/Ashx098/Mini-LLM) para comparar, en
-  `CONTEXTO_SESION.md` (no forma parte de la documentación del proyecto, es un volcado
-  de contexto para retomar el trabajo).
+  Existe además un `CONTEXTO_SESION.md` con el estado detallado de una sesión previa
+  y el setup local del modelo de referencia
+  [Ashx098/Mini-LLM](https://github.com/Ashx098/Mini-LLM) para comparar, pero es un
+  fichero **local y no versionado** (está en `.gitignore`): no forma parte de la
+  documentación del proyecto y no estará en un clon del repositorio.
 
 ## Entorno
 
