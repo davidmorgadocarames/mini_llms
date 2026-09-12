@@ -6,17 +6,52 @@ Freeze rule (plan): if any of these change before/during Etapa 2, Cracked-D must
 be retrained with the new config before Sliced-D and Cracked-D-full. The pretrain
 scripts guard this via the per-batch hash registry.
 
-Numbers were fixed after measuring real throughput on the RTX 4060 at block_size
-1024, bf16: ~50-55k tok/s for BOTH Cracked-D and Sliced-D (Sliced is not slower
-because prefix-LM splits the work between encoder and decoder). So 1200M corpus
-tokens x 3 single-epoch pretrainings ~= 20h, under the 24h budget.
+Etapa 1 numbers (26.35M/26.21M params, 1200M tokens) were fixed after measuring
+real throughput on the RTX 4060 at block_size 1024, bf16: ~50-55k tok/s for BOTH
+Cracked-D and Sliced-D (Sliced is not slower because prefix-LM splits the work
+between encoder and decoder). Those checkpoints were discarded after an
+interactive test showed the 26M/1200M combination too undertrained for basic
+chat coherence (see PARAMS/PRETRAIN_TOKENS below for the resized values), per
+two literature-backed bottlenecks: knowledge capacity (~2 bits/parameter, Allen-Zhu
+& Li, "Physics of Language Models 3.3", ICLR 2025) and tokens/parameter far below
+comparable small chat models (TinyLlama-1.1B/3T tokens, SmolLM2-135M/2T,
+SmolLM2-360M/4T -- Muennighoff et al., "Scaling Data-Constrained LM", NeurIPS 2023).
 
-VRAM headroom vs. compute utilization, measured at MICRO_BATCH=16/GRAD_ACCUM=16
-(this file's frozen values) with nvidia-smi polled every 0.4s during a real
-15-step run: Cracked-D peaks at 4.9 GB/8.2 GB (60%, ~3.2 GB free) with GPU
-utilization 96% mean / 100% max; Sliced-D peaks at 6.0 GB/8.2 GB (74%, ~2.1 GB
-free) with 99% mean / 100% max. Both keep meaningful headroom below the 8 GB
-card limit while the GPU's compute is essentially never idle.
+PRETRAIN_TOKENS=1.6B against the new ~80M-parameter architectures is the
+Chinchilla floor (~20 tokens/parameter, Hoffmann et al. 2022) for BOTH Cracked-D
+(80,628,480 params -> 19.84x) and Sliced-D (80,335,872 params -> 19.92x), chosen
+deliberately at the floor rather than deeper into "overtrained small model"
+territory (as TinyLlama/LLaMA do) to keep the wall-clock budget on a single
+RTX 4060 in the few-day range instead of a week+.
+
+VRAM headroom vs. compute utilization at the new ~80M size WAS measured with a
+real short rehearsal (nvidia-smi polled every ~2.5s during real optimizer steps,
+same method as Etapa 1) before committing to the full multi-day run, and it did
+NOT scale linearly with parameters as naive FLOP-based estimates assumed:
+
+  - At the OLD MICRO_BATCH=16/GRAD_ACCUM=16: Cracked-D peaked at 7930/8188 MB
+    (97%, ~260 MB free) and throughput COLLAPSED to ~3k tok/s (vs. a ~17k tok/s
+    linear-scaling estimate) -- the near-OOM pressure was causing allocator
+    thrashing, not just tight headroom. Too risky for an unattended multi-hour run.
+  - At MICRO_BATCH=8/GRAD_ACCUM=32 (same effective batch): Cracked-D peaked at
+    83.7% (22k tok/s measured) but Sliced-D peaked at 96.0% (21k tok/s) -- still
+    too tight for Sliced-D's cross-attention overhead specifically.
+  - At MICRO_BATCH=4/GRAD_ACCUM=64 (same effective batch, this file's frozen
+    values): Cracked-D peaked at 57% (4.67/8.19 GB, ~24k tok/s measured) and
+    Sliced-D peaked at 59% (4.83/8.19 GB, ~26k tok/s measured) -- comparable
+    headroom to Etapa 1's 60%/74%, and FASTER than the tight configurations
+    above, not slower: avoiding allocator pressure more than compensates for the
+    extra micro-step overhead. This is the frozen setting.
+  - compare_lab/train/finetune.py has no grad-accum mechanism at all, so the
+    same MICRO_BATCH=16-equivalent risk applies directly to FINETUNE_BATCH_SIZE:
+    measured 96.8% VRAM at batch_size=16 vs. 57% at batch_size=4 (both real
+    short rehearsals against a real pretrained-then-discarded checkpoint).
+    FINETUNE_BATCH_SIZE is frozen at 4 for the same reason.
+
+Real measured pretrain throughput (~24-26k tok/s) at 1.6B tokens implies
+Cracked-D ~18.5h and Sliced-D ~17.1h of pretraining alone -- both notably FASTER
+than the ~26h/model naive linear-scaling estimate, precisely because the smaller
+micro-batch avoids the thrashing regime above.
 """
 
 from dataclasses import dataclass, asdict
@@ -30,10 +65,10 @@ VOCAB_SIZE = 8192
 BLOCK_SIZE = 1024
 
 # --- pretraining sample (SmolLM-Corpus: cosmopedia-v2 + fineweb-edu-dedup 50/50) ---
-PRETRAIN_TOKENS = 1_200_000_000     # ~600M + ~600M, single epoch per model
+PRETRAIN_TOKENS = 1_600_000_000     # ~800M + ~800M; Chinchilla floor (~20 tok/param) at ~80M params
 PRETRAIN_VAL_TOKENS = 5_000_000
-MICRO_BATCH = 16                    # fragments per forward (also the plan's batch id unit)
-GRAD_ACCUM = 16                    # effective batch = 16*16*1024 ~= 262k tokens/step
+MICRO_BATCH = 4                    # fragments per forward (also the plan's batch id unit)
+GRAD_ACCUM = 64                    # effective batch = 4*64*1024 ~= 262k tokens/step (VRAM-safe at ~80M, see docstring)
 TOKENIZER_DOCS = 20_000            # streamed docs used to train the shared BPE
 
 # --- fine-tuning (HuggingFaceTB/smol-smoltalk) ---
@@ -43,7 +78,7 @@ FINETUNE_TEST_FRAC = 0.02
 # a "frozen" value that disagrees with the run is exactly what the freeze rule
 # exists to prevent.
 FINETUNE_MAX_CONVERSATIONS = 150_000
-FINETUNE_BATCH_SIZE = 16
+FINETUNE_BATCH_SIZE = 4            # finetune.py has no grad-accum; 16 measured at 96.8% VRAM at ~80M, 4 at 57% (see docstring)
 FINETUNE_MAX_STEPS = 20_000        # ~2 epochs over the kept conversations
 
 # --- optimizer / schedule ---
@@ -82,19 +117,21 @@ GENERATION = dict(temperature=0.8, top_k=50, max_new_tokens=256)
 
 
 def cracked_config() -> GPTConfig:
-    """Cracked-D and Cracked-D-full: identical decoder-only, ~26.35M params."""
+    """Cracked-D and Cracked-D-full: identical decoder-only, ~80.63M params."""
     return GPTConfig(vocab_size=VOCAB_SIZE, block_size=BLOCK_SIZE,
-                     n_layer=8, n_embd=512, n_head=8, n_kv_head=2)
+                     n_layer=12, n_embd=768, n_head=12, n_kv_head=3)
 
 
 def sliced_config() -> SlicedDConfig:
-    """Sliced-D: encoder-decoder, same blocks, 3 enc / 4 dec -> ~26.21M (-0.55%)."""
-    return SlicedDConfig(vocab_size=VOCAB_SIZE, d_model=512, n_head=8, n_kv_head=2,
-                         n_enc_layer=3, n_dec_layer=4, max_src_len=BLOCK_SIZE, max_tgt_len=BLOCK_SIZE)
+    """Sliced-D: encoder-decoder, same blocks, 7 enc / 4 dec -> ~80.34M (-0.36%)."""
+    return SlicedDConfig(vocab_size=VOCAB_SIZE, d_model=768, n_head=12, n_kv_head=3,
+                         n_enc_layer=7, n_dec_layer=4, max_src_len=BLOCK_SIZE, max_tgt_len=BLOCK_SIZE)
 
 
-# Expected parameter counts (verified by instantiation; see tests).
-PARAMS = {"cracked": 26_354_176, "cracked_full": 26_354_176, "sliced": 26_208_256}
+# Expected parameter counts (verified by instantiation; see tests). cracked_full
+# shares Cracked-D's architecture (only the pretraining loss differs), so it gets
+# the same expected count even though its training is deferred past this resize.
+PARAMS = {"cracked": 80_628_480, "cracked_full": 80_628_480, "sliced": 80_335_872}
 PARAM_TOLERANCE = 0.05
 
 

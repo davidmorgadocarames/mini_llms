@@ -23,11 +23,16 @@ from compare_lab.models.attention import GQAttention
 
 @dataclass
 class SlicedDConfig:
+    """Defaults MUST stay numerically identical to compare_lab.config.sliced_config()
+    (this is what actually trains; config.py's version is only what eval/tables.py
+    and the freeze tests compare against). Resized from the original 3 enc / 4 dec
+    / d_model=512 (~26.21M) to 7 enc / 4 dec / d_model=768 (~80.34M) to match
+    Cracked-D's ~80.63M within PARAM_TOLERANCE."""
     vocab_size: int = 8192
-    d_model: int = 512
-    n_head: int = 8
-    n_kv_head: int = 2
-    n_enc_layer: int = 3
+    d_model: int = 768
+    n_head: int = 12
+    n_kv_head: int = 3
+    n_enc_layer: int = 7
     n_dec_layer: int = 4
     ffn_mult: float = 8 / 3
     ffn_multiple_of: int = 32

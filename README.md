@@ -273,6 +273,31 @@ python -m coconut_lab.eval.run_lm_eval             # lm-evaluation-harness (lamb
 python -m coconut_lab.eval.run_kfold               # k-fold=5 de estabilidad
 ```
 
+## Fase D — Comparación Controlada
+
+Etapa 1 (hecha): **Cracked-D**, decoder-only con la misma arquitectura de Fase A
+(RoPE, RMSNorm, SwiGLU, GQA), preentrenado con objetivo prefix-LM sobre SmolLM-Corpus
+(cosmopedia-v2 + fineweb-edu-dedup, 1200M tokens) y afinado sobre smol-smoltalk. Config
+congelada en [`compare_lab/config.py`](compare_lab/config.py), tabla completa de las tres
+arquitecturas en
+[`compare_lab/eval/results/architecture_config.md`](compare_lab/eval/results/architecture_config.md).
+
+### Velocidad de inferencia: Fase A vs Fase D
+
+Medido en RTX 4060, 3 prompts x 3 semillas, 200 tokens generados por corrida (datos
+crudos en
+[`compare_lab/eval/results/inference_speed.json`](compare_lab/eval/results/inference_speed.json)):
+
+| Modelo | Contexto | Parámetros | tok/s (KV cache) | tok/s (sin cache) |
+| --- | --- | --- | --- | --- |
+| Fase A | 512 | 26,354,176 | 324.5 ± 2.8 | 297.8 ± 3.6 |
+| Fase D — Cracked-D | 1024 | 26,354,176 | 325.4 ± 4.2 | 299.5 ± 3.6 |
+
+Prácticamente idénticos, como cabe esperar: ambos son la misma clase `GPT`
+(`mini_llm/model/transformer.py`) con el mismo número de parámetros, así que la
+diferencia de contexto (512 vs 1024) no penaliza a 200 tokens generados. El KV cache
+aporta ~9% sobre recomputar la secuencia completa en cada paso.
+
 ## Contexto y fundamentos
 
 La base conceptual de este proyecto — desde bigramas hasta un Transformer completo —

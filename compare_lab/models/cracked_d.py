@@ -19,11 +19,16 @@ BLOCK_SIZE = 1024
 
 
 def build_config(vocab_size: int = VOCAB_SIZE, block_size: int = BLOCK_SIZE) -> GPTConfig:
-    """Same modern stack as Fase A (n_layer=8, n_embd=512, n_head=8, n_kv_head=2,
-    ffn_mult=8/3) -- ~26.35M params. Only block_size grows to 1024."""
+    """Same modern stack as Fase A (RoPE/RMSNorm/SwiGLU/GQA, ffn_mult=8/3), resized
+    from the original 26.35M to ~80.63M params (n_layer=12, n_embd=768, n_head=12,
+    n_kv_head=3) to reach the Chinchilla floor (~20 tokens/param) at 1.6B
+    pretraining tokens -- the 26M/1200M combination was too undertrained for basic
+    chat coherence. MUST stay numerically identical to compare_lab.config.cracked_config()
+    (this is what actually trains; config.py's version is only what eval/tables.py
+    and the freeze tests compare against)."""
     return GPTConfig(
         vocab_size=vocab_size, block_size=block_size,
-        n_layer=8, n_embd=512, n_head=8, n_kv_head=2,
+        n_layer=12, n_embd=768, n_head=12, n_kv_head=3,
     )
 
 
