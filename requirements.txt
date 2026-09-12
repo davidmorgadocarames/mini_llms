@@ -11,3 +11,4 @@ rich
 pydantic
 streamlit
 huggingface_hub
+psutil

@@ -205,29 +205,39 @@ div.stButton > button:hover {{ border-color: #8a6238; color: #c98a4b; }}
 st.markdown(PAGE_CSS, unsafe_allow_html=True)
 
 
-@st.cache_resource(show_spinner="Descargando los modelos de Fase C (solo la primera vez)...")
-def load_models():
+@st.cache_resource(show_spinner="Cargando el tokenizer...")
+def load_tokenizer():
     vocab_path = hf_hub_download(HF_REPO, "tokenizer/vocab.json")
     merges_path = hf_hub_download(HF_REPO, "tokenizer/merges.txt")
-    tokenizer = BPETokenizer(vocab_path, merges_path)
-
-    def _load(filename, config_cls, model_cls):
-        path = hf_hub_download(HF_REPO, f"coconut_lab/{filename}")
-        ckpt = torch.load(path, map_location=DEVICE, weights_only=False)
-        model = model_cls(config_cls(**ckpt["config"])).to(DEVICE)
-        model.load_state_dict(ckpt["model"])
-        model.eval()
-        return model
-
-    cracked = _load("cracked_final.pt", GPTConfig, GPT)
-    sliced = _load("sliced_final.pt", EncDecConfig, EncoderDecoderTransformer)
-    drafter = _load("pressed_drafter_final.pt", GPTConfig, GPT)
-    locator = _load("pressed_locator.pt", LocatorConfig, Locator)
-    replacer = _load("pressed_replacer.pt", ReplacerConfig, Replacer)
-    return tokenizer, cracked, sliced, drafter, locator, replacer
+    return BPETokenizer(vocab_path, merges_path)
 
 
-tokenizer, cracked, sliced, drafter, locator, replacer = load_models()
+@st.cache_resource(show_spinner="Descargando el modelo (solo la primera vez)...")
+def load_one(filename: str, kind: str):
+    """Load a single Fase C checkpoint, cached per file.
+
+    This page used to load all five checkpoints up front, even though a visitor
+    only ever chats with one architecture at a time. With Fase D added, the
+    deployed app reached 954MB of Streamlit Community Cloud's hard 1GB cap
+    (measured), and going over gets the container OOM-killed with no warning.
+    Loading on demand keeps the arithmetic identical -- same weights, same
+    outputs -- and only changes WHEN each model arrives, freeing ~150MB for
+    anyone who does not open every architecture."""
+    config_cls, model_cls = {
+        "gpt": (GPTConfig, GPT),
+        "encdec": (EncDecConfig, EncoderDecoderTransformer),
+        "locator": (LocatorConfig, Locator),
+        "replacer": (ReplacerConfig, Replacer),
+    }[kind]
+    path = hf_hub_download(HF_REPO, f"coconut_lab/{filename}")
+    ckpt = torch.load(path, map_location=DEVICE, weights_only=False)
+    model = model_cls(config_cls(**ckpt["config"])).to(DEVICE)
+    model.load_state_dict(ckpt["model"])
+    model.eval()
+    return model
+
+
+tokenizer = load_tokenizer()
 
 
 def build_prompt(history: list[dict], block_size: int, reserve_tokens: int = 200) -> str:
@@ -246,11 +256,28 @@ def build_prompt(history: list[dict], block_size: int, reserve_tokens: int = 200
     return ASSISTANT_MARKER
 
 
+def get_cracked():
+    return load_one("cracked_final.pt", "gpt")
+
+
+def get_sliced():
+    return load_one("sliced_final.pt", "encdec")
+
+
+def get_pressed():
+    """Pressed is three checkpoints (drafter + locator + replacer), so opening it
+    costs the most; that is exactly why it is not loaded until it is chosen."""
+    return (load_one("pressed_drafter_final.pt", "gpt"),
+            load_one("pressed_locator.pt", "locator"),
+            load_one("pressed_replacer.pt", "replacer"))
+
+
 def generate_full_response(model_id: str, prompt_text: str) -> str:
     if model_id == "cracked":
-        return cracked_mod.generate_response(cracked, tokenizer, prompt_text, DEVICE, max_new_tokens=150)
+        return cracked_mod.generate_response(get_cracked(), tokenizer, prompt_text, DEVICE, max_new_tokens=150)
     if model_id == "sliced":
-        return sliced_mod.generate_response(sliced, tokenizer, prompt_text, DEVICE, max_new_tokens=150)
+        return sliced_mod.generate_response(get_sliced(), tokenizer, prompt_text, DEVICE, max_new_tokens=150)
+    drafter, locator, replacer = get_pressed()
     return reduce_with_pressed(drafter, locator, replacer, tokenizer, prompt_text, DEVICE,
                                 max_new_tokens_draft=200).final_text
 
@@ -370,7 +397,7 @@ if prompt.strip() and (send_clicked or prompt != st.session_state.fasec_last_pro
                          unsafe_allow_html=True)
 
     model_id = st.session_state.fasec_model
-    block_size = cracked.config.block_size if model_id == "cracked" else (
+    block_size = get_cracked().config.block_size if model_id == "cracked" else (
         sliced_mod.SRC_BLOCK_SIZE if model_id == "sliced" else DRAFTER_BLOCK_SIZE)
     prompt_text = build_prompt(st.session_state.fasec_history, block_size)
     full_response = generate_full_response(model_id, prompt_text)

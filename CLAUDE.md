@@ -75,12 +75,40 @@ Proyecto de portfolio: construir un mini-LLM desde cero en dos fases, subido a G
 - **[EN CURSO] Fase D — por qué los chatbots responden mal**: investigación abierta
   sobre cómo mejorar las respuestas de Cracked/Sliced/Pressed (déficit de datos vs.
   Chinchilla, dominio de WikiText-103 vs. conversación, falta de preentrenamiento en
-  Sliced/drafter de Pressed). Plan detallado, en pausa y sin aprobar, en
-  `C:\Users\Gatrix\.claude\plans\vamos-a-hacer-un-soft-finch.md`. Estado completo de la
-  sesión, incluido el setup local del modelo de referencia
-  [Ashx098/Mini-LLM](https://github.com/Ashx098/Mini-LLM) para comparar, en
-  `CONTEXTO_SESION.md` (no forma parte de la documentación del proyecto, es un volcado
-  de contexto para retomar el trabajo).
+  Sliced/drafter de Pressed). Se concretó en `compare_lab/`: comparación
+  **controlada** decoder-only vs encoder-decoder igualando datos, tokenizer,
+  parámetros y presupuesto — las dos cosas que la Fase C no controlaba.
+
+  **Etapa 1 [HECHA]**: solo **Cracked-D** (decoder-only, 26.354.176 params),
+  preentrenado con objetivo prefix-LM sobre SmolLM-Corpus (cosmopedia-v2 +
+  fineweb-edu-dedup, 50/50 **por tokens**, 1200M tokens, 1 época) y afinado sobre
+  smol-smoltalk. val_loss 2.7888 (ppl 16.3) en preentrenamiento, 1.5621 en
+  fine-tuning. Demo en `pages/3_Fase_D_Comparacion_Controlada.py`. Configuración
+  **congelada** en `compare_lab/config.py`, verificada contra los checkpoints
+  realmente entrenados por `tests/test_compare_lab_freeze.py`: si algo cambia,
+  Cracked-D se reentrena antes que los demás.
+
+  **Etapa 2 [PENDIENTE, requiere OK explícito]**: Sliced-D (encoder-decoder),
+  Cracked-D-full (control), arnés de evaluación, k-fold y README.
+
+  Notas de proceso de la Etapa 1, en la misma línea de verificar antes de concluir
+  de las fases anteriores: (a) un ensayo de pausa/reanudación **con datos y GPU
+  reales** destapó un bug fatal que ningún test de CPU podía ver — `map_location`
+  movía el estado del RNG a GPU y *toda* reanudación reventaba; (b) el
+  entrenamiento se hizo tolerante a fallos duros (checkpoint atómico con `fsync` +
+  verificación + copia `.prev`, fichero `STOP` como única parada limpia, ver
+  `compare_lab/PAUSAR_Y_REANUDAR.md`); (c) `pytest` estaba **destruyendo un
+  deliverable** en silencio (la curva de loss del preentrenamiento) porque
+  `_save_curves` escribía antes de comprobar si había datos y dos tests no
+  redirigían `RESULTS_DIR` — de ahí el fixture `autouse` en `tests/conftest.py` y
+  `compare_lab/train/regen_curves.py`, que reconstruye la curva desde el historial
+  que llevan dentro los checkpoints.
+
+  Existe además un `CONTEXTO_SESION.md` con el estado detallado de una sesión previa
+  y el setup local del modelo de referencia
+  [Ashx098/Mini-LLM](https://github.com/Ashx098/Mini-LLM) para comparar, pero es un
+  fichero **local y no versionado** (está en `.gitignore`): no forma parte de la
+  documentación del proyecto y no estará en un clon del repositorio.
 
 ## Entorno
 
@@ -110,6 +138,13 @@ coconut_lab/      Fase C: data/ (Alpaca, oasst1, GSM8K), models/ (cracked.py, sl
                   pressed.py + pressed_loop.py), eval/ (run_eval.py, run_domain_eval.py,
                   run_lm_eval.py, run_kfold.py, lm_eval_adapter.py, resultados en
                   eval/results/), logos.py (ASCII-art de Cracked/Sliced/Pressed)
+compare_lab/      Fase D: config.py (configuración CONGELADA), data/ (tokenizer con ids
+                  especiales distintos, prefix_lm.py con cortes y orden compartidos,
+                  streaming.py con mezcla 50/50 por tokens), models/ (cracked_d,
+                  sliced_d, attention GQA parametrizable), train/ (checkpoint.py
+                  duradero, pretrain, finetune, run_pipeline, regen_curves),
+                  verify/ (ensayo de pausa/reanudación con datos reales),
+                  eval/results/, demo.py, export_for_demo.py, upload_to_hf.py
 scripts/          Utilidades sueltas (p.ej. clean_vtt.py para los transcripts,
                   render_logo.py para rasterizar los logos ASCII-art a PNG)
 tests/            pytest

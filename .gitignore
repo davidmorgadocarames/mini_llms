@@ -25,6 +25,11 @@ data/processed/
 mini_llm/data/artifacts/
 depth_lab/data/artifacts/
 coconut_lab/data/artifacts/
+# Fase D: token bins (~2.4GB), the fine-tuning jsonl (~300MB), the prefix-LM
+# plan (cuts/order ~9MB) and the batch-hash registry all live here. The
+# tokenizer lives here too and is likewise not versioned -- same as Fase A's,
+# it is published to the HuggingFace repo and downloaded from there by the demo.
+compare_lab/data/artifacts/
 
 # HuggingFace datasets/tokenizers cache
 .cache/
@@ -33,3 +38,10 @@ coconut_lab/data/artifacts/
 # OS
 .DS_Store
 Thumbs.db
+
+# Fase D: rehearsal artifacts from compare_lab/verify (never a real run)
+compare_lab/verify/_run/
+
+# Volcado de contexto de sesion para retomar el trabajo, no documentacion del
+# proyecto: lleva rutas locales y notas internas, y esto es un repo de portfolio.
+CONTEXTO_SESION.md
