@@ -61,6 +61,23 @@ LOG_INTERVAL = 20
 CKPT_INTERVAL_MIN = 5.0
 
 # --- sampling for generation (identical across models for a fair comparison) ---
+# Measured, do not "improve" by eye. Over 6 prompts x 5 seeds, lowering the
+# temperature is worse on BOTH axes that matter here:
+#   temp   replies ending at <eos>   repeated 4-grams
+#   0.8              77%                    3%
+#   0.6              67%                    4%
+#   0.3              63%                   24%
+# which is what Holtzman et al. 2020 ("The Curious Case of Neural Text
+# Degeneration") predicts: maximization-based decoding CAUSES the degenerate
+# repetition it looks like it should fix. 0.8 stays.
+#
+# Not adopted, deliberately. A repetition penalty (Keskar et al. 2019, CTRL
+# section 4.1) is inference-only and needs no retraining, but measured here it
+# moved 4-gram repetition by ~0-5 points in either direction -- repetition is
+# not what makes this model's answers bad; missing knowledge at 26M params is.
+# The training-time counterpart, unlikelihood training (Welleck et al., ICLR
+# 2020), would need a full retraining run. Worth revisiting only if a larger
+# model is trained from scratch -- bundle it with that run, not on its own.
 GENERATION = dict(temperature=0.8, top_k=50, max_new_tokens=256)
 
 

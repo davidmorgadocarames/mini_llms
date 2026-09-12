@@ -215,7 +215,9 @@ if prompt.strip() and (send_clicked or prompt != st.session_state.fased_last_pro
     output_box.markdown(render_conversation(st.session_state.fased_history, cursor_text=""),
                         unsafe_allow_html=True)
 
-    full_response = chat(model, tok, st.session_state.fased_history, device=device, max_new_tokens=200)
+    # no sampling overrides: chat() takes them from the frozen config, so the
+    # demo generates under exactly the settings the comparison declares
+    full_response = chat(model, tok, st.session_state.fased_history, device=device)
 
     words = full_response.split(" ")
     for i in range(len(words)):

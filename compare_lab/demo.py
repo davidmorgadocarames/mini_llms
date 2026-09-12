@@ -73,7 +73,21 @@ def load_from_hf(repo: str = HF_REPO, device: str | None = None) -> tuple[GPT, T
 
 
 def chat(model: GPT, tok: Tokenizer, messages: list[dict], device: str = "cpu",
-         temperature: float = 0.8, top_k: int = 50, max_new_tokens: int = 256) -> str:
-    """messages: [{"role": "user"|"assistant"|"system", "content": str}]."""
-    return generate_response(model, tok, messages, max_new_tokens=max_new_tokens,
-                             temperature=temperature, top_k=top_k, device=device)
+         temperature: float | None = None, top_k: int | None = None,
+         max_new_tokens: int | None = None) -> str:
+    """messages: [{"role": "user"|"assistant"|"system", "content": str}].
+
+    Sampling defaults come from the frozen config, never from literals here. The
+    comparison requires all three architectures to generate under identical
+    settings, so a second copy of these numbers is a way for them to drift apart
+    silently -- which already happened once in this phase (the fine-tuning CLI
+    defaulted to batch 8 / 2000 steps while the frozen config said 16 / 20000).
+    """
+    from compare_lab.config import GENERATION
+
+    return generate_response(
+        model, tok, messages,
+        max_new_tokens=GENERATION["max_new_tokens"] if max_new_tokens is None else max_new_tokens,
+        temperature=GENERATION["temperature"] if temperature is None else temperature,
+        top_k=GENERATION["top_k"] if top_k is None else top_k,
+        device=device)
