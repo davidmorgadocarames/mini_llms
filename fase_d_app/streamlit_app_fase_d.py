@@ -1,12 +1,18 @@
 """Fase D interactive demo (Etapa 2): chat with Cracked-D, the decoder-only model
 of the controlled decoder-only vs encoder-decoder comparison. Deployed as its OWN
-standalone Streamlit Community Cloud app (this file at the repo root, not under
-pages/), separate from the Fase A/B/C multipage app: Cracked-D's slim checkpoint
-grew from ~100MB to ~300MB when resized to ~80M params, and sharing the 1GB
-memory cap with the other phases (st.cache_resource keeps every visited page's
-model resident for the container's lifetime) risked OOMKilling the whole app if
-a visitor browsed multiple phases in one session. Sliced-D is added here in
-Etapa 2 (with a model switcher, like Fase C).
+standalone Streamlit Community Cloud app, separate from the Fase A/B/C multipage
+app: Cracked-D's slim checkpoint grew from ~100MB to ~300MB when resized to ~80M
+params, and sharing the 1GB memory cap with the other phases (st.cache_resource
+keeps every visited page's model resident for the container's lifetime) risked
+OOMKilling the whole app if a visitor browsed multiple phases in one session.
+Sliced-D is added here in Etapa 2 (with a model switcher, like Fase C).
+
+Lives in its own fase_d_app/ directory, NOT at the repo root, deliberately: a
+Streamlit app auto-discovers any `pages/` folder that sits next to its main
+script and adds those as extra sidebar pages. The repo root already has a
+`pages/` folder (Fase B and C, used by streamlit_app.py) -- placing this file
+there directly pulled Fase B and C into what was supposed to be a Fase D-only
+app. A dedicated directory has no such sibling, so nothing else gets pulled in.
 
 All load/generation logic lives in compare_lab.demo (Streamlit-free, unit-tested);
 this file is only UI. The model is loaded lazily via st.cache_resource, so it is
@@ -21,15 +27,23 @@ for basic chat coherence) -- answers will still be limited.
 
 import base64
 import html
+import sys
 import time
 from pathlib import Path
+
+# This file is one level below the repo root (fase_d_app/), so the packages it
+# imports (compare_lab, coconut_lab) are NOT on sys.path by default -- Python
+# only auto-adds the script's own directory, not the repo root, when Streamlit
+# runs it directly as the main file. Add the repo root explicitly before the
+# package imports below.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import streamlit as st
 
 from compare_lab.demo import load_model, chat
 from coconut_lab.logos import CRACKED_WORDMARK
 
-ASSETS_DIR = Path(__file__).resolve().parent / "coconut_tui" / "assets"
+ASSETS_DIR = Path(__file__).resolve().parent.parent / "coconut_tui" / "assets"
 LOGO_FONT_PATH = ASSETS_DIR / "DejaVuSansMono.ttf"
 OUTPUT_BOX_HEIGHT = 480
 

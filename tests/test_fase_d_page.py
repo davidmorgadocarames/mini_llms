@@ -1,13 +1,13 @@
 """Fase D Streamlit app, driven headless with AppTest (same approach as the
 Fase A/B page tests). Marked slow: it loads the real ~80M checkpoint. Deployed
-standalone (streamlit_app_fase_d.py at the repo root, not under pages/) -- see
-that file's docstring for why."""
+standalone (fase_d_app/streamlit_app_fase_d.py, its own directory so it has no
+sibling pages/ folder to auto-discover) -- see that file's docstring for why."""
 
 from pathlib import Path
 
 import pytest
 
-PAGE = Path(__file__).resolve().parent.parent / "streamlit_app_fase_d.py"
+PAGE = Path(__file__).resolve().parent.parent / "fase_d_app" / "streamlit_app_fase_d.py"
 CKPT = (Path(__file__).resolve().parent.parent / "compare_lab" / "checkpoints"
         / "cracked" / "finetune_final.pt")
 

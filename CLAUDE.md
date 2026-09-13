@@ -110,9 +110,11 @@ Proyecto de portfolio: construir un mini-LLM desde cero en dos fases, subido a G
   4060. Sliced-D-80M: pendiente de lanzar. Cracked-D-full (control): pospuesto,
   fuera de esta tanda.
 
-  Demo separada de la app multipágina de Fases A/B/C: `streamlit_app_fase_d.py`
-  (antes `pages/3_Fase_D_Comparacion_Controlada.py`), desplegada como app propia
-  de Streamlit Community Cloud. El checkpoint slim pasó de ~100MB a ~300MB al
+  Demo separada de la app multipágina de Fases A/B/C: `fase_d_app/streamlit_app_fase_d.py`
+  (antes `pages/3_Fase_D_Comparacion_Controlada.py`, luego brevemente
+  `streamlit_app_fase_d.py` en la raíz — movida a su propia carpeta porque
+  Streamlit añadía automáticamente Fase B y C al detectar la carpeta `pages/`
+  vecina en la raíz), desplegada como app propia de Streamlit Community Cloud. El checkpoint slim pasó de ~100MB a ~300MB al
   redimensionar a 80M, y compartir el límite de 1GB con las otras fases
   (`st.cache_resource` mantiene cada modelo visitado en memoria durante toda la
   vida del contenedor) arriesgaba tirar la app entera si alguien visitaba varias

@@ -72,7 +72,7 @@ es implementarla de nuevo, sin tocar el resto.
   **Fase B — Depth Lab** y **Fase C — Coconut Interactivo** (chat multi-modelo), ambas
   descritas más abajo.
 - 🚀 **Fase D — Comparación Controlada** — app de Streamlit **independiente**
-  ([`streamlit_app_fase_d.py`](streamlit_app_fase_d.py)), separada de la anterior a
+  ([`fase_d_app/streamlit_app_fase_d.py`](fase_d_app/streamlit_app_fase_d.py)), separada de la anterior a
   propósito: el modelo de Fase D pesa ~300MB (redimensionado a ~80M parámetros en
   Etapa 2) y compartir el límite de memoria de 1GB de Streamlit Community Cloud con
   las Fases A/B/C arriesgaba tirar la app entera si alguien visitaba varias páginas
