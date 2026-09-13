@@ -68,12 +68,17 @@ es implementarla de nuevo, sin tocar el resto.
 - 🚀 **[Inferencia real en vivo (Streamlit Community Cloud)](https://minillms-p2qhjk4tkphgwcw4yqfqks.streamlit.app)**
   — el modelo corriendo de verdad en un servidor, cargado desde el checkpoint publicado en
   [HuggingFace](https://huggingface.co/davidmorgado/coconut-mini-llm). Código en
-  [`streamlit_app.py`](streamlit_app.py). La misma app tiene tres páginas más (menú lateral):
+  [`streamlit_app.py`](streamlit_app.py). La misma app tiene dos páginas más (menú lateral):
   **Fase B — Depth Lab** y **Fase C — Coconut Interactivo** (chat multi-modelo), ambas
-  descritas más abajo, y **Fase D — Comparación Controlada**, que enfrenta un
-  decoder-only contra un encoder-decoder igualando datos, tokenizer, número de
-  parámetros y presupuesto de entrenamiento — justo las variables que la comparación
-  de la Fase C no controlaba.
+  descritas más abajo.
+- 🚀 **Fase D — Comparación Controlada** — app de Streamlit **independiente**
+  ([`streamlit_app_fase_d.py`](streamlit_app_fase_d.py)), separada de la anterior a
+  propósito: el modelo de Fase D pesa ~300MB (redimensionado a ~80M parámetros en
+  Etapa 2) y compartir el límite de memoria de 1GB de Streamlit Community Cloud con
+  las Fases A/B/C arriesgaba tirar la app entera si alguien visitaba varias páginas
+  en la misma sesión. Enfrenta un decoder-only contra un encoder-decoder igualando
+  datos, tokenizer, número de parámetros y presupuesto de entrenamiento — justo las
+  variables que la comparación de la Fase C no controlaba.
 
 ## Fase B — ¿Por qué los Transformers fallan en razonamiento recursivo profundo?
 
@@ -275,12 +280,28 @@ python -m coconut_lab.eval.run_kfold               # k-fold=5 de estabilidad
 
 ## Fase D — Comparación Controlada
 
-Etapa 1 (hecha): **Cracked-D**, decoder-only con la misma arquitectura de Fase A
-(RoPE, RMSNorm, SwiGLU, GQA), preentrenado con objetivo prefix-LM sobre SmolLM-Corpus
-(cosmopedia-v2 + fineweb-edu-dedup, 1200M tokens) y afinado sobre smol-smoltalk. Config
-congelada en [`compare_lab/config.py`](compare_lab/config.py), tabla completa de las tres
-arquitecturas en
+Etapa 1 entrenó solo Cracked-D a 26.35M parámetros / 1200M tokens; probado
+interactivamente, no tenía coherencia básica de chat. Diagnóstico respaldado en
+literatura (Allen-Zhu & Li, *Physics of Language Models 3.3*, ICLR 2025 — capacidad
+de conocimiento factual ~2 bits/parámetro; Muennighoff et al., *Scaling
+Data-Constrained LM*, NeurIPS 2023 — comparado con TinyLlama-1.1B/3T tokens y
+SmolLM2-135M/2T): ni el tamaño ni el ratio tokens/parámetro alcanzaban a modelos
+pequeños de referencia que sí funcionan como chat.
+
+**Etapa 2** (en curso): Cracked-D y Sliced-D redimensionados a ~80M parámetros
+(80,628,480 / 80,335,872, dentro del ±5% de tolerancia) y `PRETRAIN_TOKENS` subido a
+1.6B — el suelo de Chinchilla (~20 tokens/parámetro, Hoffmann et al. 2022) a este
+tamaño. Config congelada en [`compare_lab/config.py`](compare_lab/config.py), tabla
+completa de las arquitecturas en
 [`compare_lab/eval/results/architecture_config.md`](compare_lab/eval/results/architecture_config.md).
+
+**Cracked-D-80M entrenado**: val_loss 2.5014 preentrenamiento (mejora real sobre
+2.7888 a 26M) / 1.6878 fine-tuning (empeora levemente sobre 1.5621 a 26M — sin
+concluir todavía), ~19.2h en una RTX 4060 (curvas en
+[`compare_lab/eval/results/pretrain_loss_cracked.png`](compare_lab/eval/results/pretrain_loss_cracked.png)
+y
+[`finetune_loss_cracked.png`](compare_lab/eval/results/finetune_loss_cracked.png)).
+Sliced-D-80M: entrenamiento pendiente de lanzar.
 
 ### Velocidad de inferencia: Fase A vs Fase D
 
@@ -290,13 +311,13 @@ crudos en
 
 | Modelo | Contexto | Parámetros | tok/s (KV cache) | tok/s (sin cache) |
 | --- | --- | --- | --- | --- |
-| Fase A | 512 | 26,354,176 | 324.5 ± 2.8 | 297.8 ± 3.6 |
-| Fase D — Cracked-D | 1024 | 26,354,176 | 325.4 ± 4.2 | 299.5 ± 3.6 |
+| Fase A | 512 | 26,354,176 | 321.0 ± 3.6 | 299.3 ± 4.3 |
+| Fase D — Cracked-D | 1024 | 80,628,480 | 215.1 ± 1.8 | 172.9 ± 0.8 |
 
-Prácticamente idénticos, como cabe esperar: ambos son la misma clase `GPT`
-(`mini_llm/model/transformer.py`) con el mismo número de parámetros, así que la
-diferencia de contexto (512 vs 1024) no penaliza a 200 tokens generados. El KV cache
-aporta ~9% sobre recomputar la secuencia completa en cada paso.
+Ahora sí divergen, a diferencia de la medición de Etapa 1: Cracked-D-80M tiene 3x
+más parámetros que Fase A, así que cada paso de generación cuesta más cómputo. El KV
+cache sigue aportando lo mismo proporcionalmente (~24% sobre recomputar la secuencia
+completa en cada paso, algo más que el ~9% de Etapa 1 porque el contexto es 2x mayor).
 
 ## Contexto y fundamentos
 

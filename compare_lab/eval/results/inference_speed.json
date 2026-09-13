@@ -15,27 +15,27 @@
     "block_size": 512,
     "params": 26354176,
     "kv_cache": {
-      "mean_tok_s": 324.5,
-      "std_tok_s": 2.8,
+      "mean_tok_s": 321.0,
+      "std_tok_s": 3.6,
       "n": 9
     },
     "no_cache": {
-      "mean_tok_s": 297.8,
-      "std_tok_s": 3.6,
+      "mean_tok_s": 299.3,
+      "std_tok_s": 4.3,
       "n": 9
     }
   },
   "fase_d_cracked": {
     "block_size": 1024,
-    "params": 26354176,
+    "params": 80628480,
     "kv_cache": {
-      "mean_tok_s": 325.4,
-      "std_tok_s": 4.2,
+      "mean_tok_s": 215.1,
+      "std_tok_s": 1.8,
       "n": 9
     },
     "no_cache": {
-      "mean_tok_s": 299.5,
-      "std_tok_s": 3.6,
+      "mean_tok_s": 172.9,
+      "std_tok_s": 0.8,
       "n": 9
     }
   }

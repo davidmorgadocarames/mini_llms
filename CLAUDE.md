@@ -79,17 +79,54 @@ Proyecto de portfolio: construir un mini-LLM desde cero en dos fases, subido a G
   **controlada** decoder-only vs encoder-decoder igualando datos, tokenizer,
   parámetros y presupuesto — las dos cosas que la Fase C no controlaba.
 
-  **Etapa 1 [HECHA]**: solo **Cracked-D** (decoder-only, 26.354.176 params),
-  preentrenado con objetivo prefix-LM sobre SmolLM-Corpus (cosmopedia-v2 +
-  fineweb-edu-dedup, 50/50 **por tokens**, 1200M tokens, 1 época) y afinado sobre
-  smol-smoltalk. val_loss 2.7888 (ppl 16.3) en preentrenamiento, 1.5621 en
-  fine-tuning. Demo en `pages/3_Fase_D_Comparacion_Controlada.py`. Configuración
-  **congelada** en `compare_lab/config.py`, verificada contra los checkpoints
-  realmente entrenados por `tests/test_compare_lab_freeze.py`: si algo cambia,
-  Cracked-D se reentrena antes que los demás.
+  **Etapa 1 [HECHA, luego descartada y rehecha en Etapa 2]**: solo **Cracked-D**
+  (decoder-only, 26.354.176 params), preentrenado con objetivo prefix-LM sobre
+  SmolLM-Corpus (1200M tokens, 1 época) y afinado sobre smol-smoltalk, val_loss
+  2.7888 preentrenamiento / 1.5621 fine-tuning. Probado interactivamente y
+  descartado: sin coherencia básica de chat (p. ej. no respondía bien a "¿quién
+  es Isaac Newton?"). Diagnóstico respaldado en literatura (no una corazonada):
+  capacidad de conocimiento factual limitada a ~2 bits/parámetro (Allen-Zhu & Li,
+  *Physics of Language Models 3.3*, ICLR 2025) y ratio tokens/parámetro muy por
+  debajo de modelos pequeños de referencia que sí funcionan como chat
+  (TinyLlama-1.1B/3T tokens, SmolLM2-135M/2T — Muennighoff et al., *Scaling
+  Data-Constrained LM*, NeurIPS 2023).
 
-  **Etapa 2 [PENDIENTE, requiere OK explícito]**: Sliced-D (encoder-decoder),
-  Cracked-D-full (control), arnés de evaluación, k-fold y README.
+  **Etapa 2 [EN CURSO, con OK explícito]**: Cracked-D y Sliced-D redimensionados a
+  ~80M parámetros (Cracked-D 80.628.480; Sliced-D 80.335.872, dentro de la
+  tolerancia del 5%), `PRETRAIN_TOKENS` subido a 1.6B (suelo de Chinchilla, ~20
+  tokens/parámetro — Hoffmann et al. 2022). Un ensayo corto en hardware real
+  (`nvidia-smi` sondeado durante pasos reales) reveló que la VRAM no escala
+  igual de limpio que el cómputo: `MICRO_BATCH=16` original llegaba al 97% y el
+  throughput se desplomaba por thrashing del allocator; `MICRO_BATCH=4` /
+  `GRAD_ACCUM=64` (mismo batch efectivo) baja a ~57-59% y además va más rápido
+  (~24-26k tok/s). `finetune.py` no tiene grad-accum y sufría el mismo problema;
+  `FINETUNE_BATCH_SIZE` bajado de 16 a 4 por el mismo motivo. Todo documentado
+  con números reales en el docstring de `compare_lab/config.py`.
+
+  Cracked-D-80M **entrenado**: val_loss 2.5014 preentrenamiento (mejora real
+  sobre el 2.7888 de 26M) / 1.6878 fine-tuning (empeora ligeramente respecto al
+  1.5621 de 26M, posiblemente por el batch de fine-tuning más pequeño; sin
+  concluir todavía, pendiente de probar el chat de verdad), ~19.2h en una RTX
+  4060. Sliced-D-80M: pendiente de lanzar. Cracked-D-full (control): pospuesto,
+  fuera de esta tanda.
+
+  Demo separada de la app multipágina de Fases A/B/C: `streamlit_app_fase_d.py`
+  (antes `pages/3_Fase_D_Comparacion_Controlada.py`), desplegada como app propia
+  de Streamlit Community Cloud. El checkpoint slim pasó de ~100MB a ~300MB al
+  redimensionar a 80M, y compartir el límite de 1GB con las otras fases
+  (`st.cache_resource` mantiene cada modelo visitado en memoria durante toda la
+  vida del contenedor) arriesgaba tirar la app entera si alguien visitaba varias
+  fases en la misma sesión — de ahí la app independiente.
+
+  Configuración **congelada** en `compare_lab/config.py` (y duplicada,
+  deliberadamente, en `compare_lab/models/cracked_d.py` y `sliced_d.py`, que son
+  los que de verdad usa el entrenamiento — `config.py` es solo lo que comparan
+  `eval/tables.py` y `tests/test_compare_lab_freeze.py`), verificada contra los
+  checkpoints realmente entrenados por ese test: si algo cambia, Cracked-D se
+  reentrena antes que los demás.
+
+  Arnés de evaluación, k-fold y sección de README con los resultados finales:
+  pendientes hasta que Sliced-D-80M termine.
 
   Notas de proceso de la Etapa 1, en la misma línea de verificar antes de concluir
   de las fases anteriores: (a) un ensayo de pausa/reanudación **con datos y GPU

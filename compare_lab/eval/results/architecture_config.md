@@ -2,9 +2,9 @@
 
 | Modelo | Topologia | Capas | d_model | Cabezas | Cabezas KV | FFN | Contexto | Parametros | Params embedding | vs Cracked-D |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Cracked-D | decoder-only (causal) | 8 | 512 | 8 | 2 | 1,376 | 1024 | 26,354,176 | 4,194,304 | 0.0 |
-| Cracked-D-full | decoder-only (causal), control | 8 | 512 | 8 | 2 | 1,376 | 1024 | 26,354,176 | 4,194,304 | 0.0 |
-| Sliced-D | encoder-decoder (bidirectional enc + causal dec + cross-attn) | 3 enc + 4 dec | 512 | 8 | 2 | 1,376 | 1024 | 26,208,256 | 4,194,304 | -0.55 |
+| Cracked-D | decoder-only (causal) | 12 | 768 | 12 | 3 | 2,048 | 1024 | 80,628,480 | 6,291,456 | 0.0 |
+| Cracked-D-full | decoder-only (causal), control | 12 | 768 | 12 | 3 | 2,048 | 1024 | 80,628,480 | 6,291,456 | 0.0 |
+| Sliced-D | encoder-decoder (bidirectional enc + causal dec + cross-attn) | 7 enc + 4 dec | 768 | 12 | 3 | 2,048 | 1024 | 80,335,872 | 6,291,456 | -0.36 |
 
 Tolerancia de igualdad de parametros: +-5%.
 

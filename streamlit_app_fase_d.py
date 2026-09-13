@@ -1,7 +1,12 @@
-"""Fase D interactive demo (Etapa 1): chat with Cracked-D, the decoder-only model
-of the controlled decoder-only vs encoder-decoder comparison. Same Streamlit app
-as the Fase A/B/C demos -- Streamlit auto-discovers pages/*.py, no extra
-deployment. Sliced-D is added here in Etapa 2 (with a model switcher, like Fase C).
+"""Fase D interactive demo (Etapa 2): chat with Cracked-D, the decoder-only model
+of the controlled decoder-only vs encoder-decoder comparison. Deployed as its OWN
+standalone Streamlit Community Cloud app (this file at the repo root, not under
+pages/), separate from the Fase A/B/C multipage app: Cracked-D's slim checkpoint
+grew from ~100MB to ~300MB when resized to ~80M params, and sharing the 1GB
+memory cap with the other phases (st.cache_resource keeps every visited page's
+model resident for the container's lifetime) risked OOMKilling the whole app if
+a visitor browsed multiple phases in one session. Sliced-D is added here in
+Etapa 2 (with a model switcher, like Fase C).
 
 All load/generation logic lives in compare_lab.demo (Streamlit-free, unit-tested);
 this file is only UI. The model is loaded lazily via st.cache_resource, so it is
@@ -9,8 +14,9 @@ only downloaded/held in memory when this page is actually opened.
 
 Names in the UI are Cracked-D / Sliced-D (not the Fase C Cracked/Sliced), because
 they are different models: retrained from scratch on SmolLM-Corpus + smol-smoltalk
-with a matched parameter budget. It is a ~26M-parameter model -- answers will be
-limited.
+with a matched parameter budget. It is a ~80M-parameter model (resized up from the
+original ~26M after an interactive test showed that combination too undertrained
+for basic chat coherence) -- answers will still be limited.
 """
 
 import base64
@@ -23,7 +29,7 @@ import streamlit as st
 from compare_lab.demo import load_model, chat
 from coconut_lab.logos import CRACKED_WORDMARK
 
-ASSETS_DIR = Path(__file__).resolve().parent.parent / "coconut_tui" / "assets"
+ASSETS_DIR = Path(__file__).resolve().parent / "coconut_tui" / "assets"
 LOGO_FONT_PATH = ASSETS_DIR / "DejaVuSansMono.ttf"
 OUTPUT_BOX_HEIGHT = 480
 
@@ -167,8 +173,8 @@ st.markdown(
 st.markdown(
     '<div class="coconut-info">Fase D reentrena desde cero, con los mismos datos, tokenizer y '
     'presupuesto, un <strong>decoder-only (Cracked-D)</strong> y un encoder-decoder (Sliced-D, en '
-    'Etapa 2) de ~26M parametros, preentrenados en SmolLM-Corpus y afinados en smol-smoltalk. '
-    'Es un modelo <strong>muy pequeno (~26M)</strong>: sus respuestas seran limitadas. '
+    'Etapa 2) de ~80M parametros, preentrenados en SmolLM-Corpus y afinados en smol-smoltalk. '
+    'Es un modelo <strong>pequeno (~80M)</strong>: sus respuestas seran limitadas. '
     'Detalles y resultados en el README.</div>',
     unsafe_allow_html=True,
 )
@@ -236,7 +242,7 @@ with st.sidebar:
     st.header("Fase D")
     st.markdown(
         "Comparacion controlada decoder-only (**Cracked-D**) vs encoder-decoder "
-        "(**Sliced-D**, Etapa 2), con mismos datos, tokenizer, parametros (~26M) y "
+        "(**Sliced-D**, Etapa 2), con mismos datos, tokenizer, parametros (~80M) y "
         "presupuesto de entrenamiento. Preentrenado en SmolLM-Corpus, afinado en smol-smoltalk."
     )
     st.markdown("---")

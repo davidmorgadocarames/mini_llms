@@ -1,11 +1,13 @@
-"""Fase D Streamlit page, driven headless with AppTest (same approach as the
-Fase A/B page tests). Marked slow: it loads the real 26M checkpoint."""
+"""Fase D Streamlit app, driven headless with AppTest (same approach as the
+Fase A/B page tests). Marked slow: it loads the real ~80M checkpoint. Deployed
+standalone (streamlit_app_fase_d.py at the repo root, not under pages/) -- see
+that file's docstring for why."""
 
 from pathlib import Path
 
 import pytest
 
-PAGE = Path(__file__).resolve().parent.parent / "pages" / "3_Fase_D_Comparacion_Controlada.py"
+PAGE = Path(__file__).resolve().parent.parent / "streamlit_app_fase_d.py"
 CKPT = (Path(__file__).resolve().parent.parent / "compare_lab" / "checkpoints"
         / "cracked" / "finetune_final.pt")
 
@@ -21,7 +23,7 @@ def test_page_loads_and_shows_the_banner_and_warning():
     body = " ".join(m.value for m in at.markdown)
     assert "Cracked-D" in body
     # the page must be honest about the scale; the plan requires this warning
-    assert "26M" in body
+    assert "80M" in body
     assert any("Reiniciar" in b.label for b in at.button)
 
 
